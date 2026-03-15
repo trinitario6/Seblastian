@@ -858,11 +858,11 @@ function addScore(cells, isLine, lineCount) {
 function showCombo(lines) {
   const el = document.getElementById('combo');
   let msg = '';
-  if (lines >= 2) msg += `${lines} LINES!`;
-  if (comboCount >= 2) msg += (msg ? ' ' : '') + `×${comboCount} COMBO!`;
+  if (lines >= 2) msg = 'Sebtacular! 🚀';
+  else if (comboCount >= 2) msg = `×${comboCount} COMBO!`;
   if (msg) {
     el.textContent = msg;
-    setTimeout(() => { el.textContent = ''; }, 1600);
+    setTimeout(() => { el.textContent = ''; }, 2000);
   } else {
     el.textContent = '';
   }
