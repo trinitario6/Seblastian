@@ -282,6 +282,86 @@
   .c6 { background: #9b59b6; }
   .c7 { background: #e91e63; }
   .c8 { background: #00bcd4; }
+
+  /* Mode select screen */
+  #mode-select {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    background: #0f0f1a;
+    z-index: 400;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    padding: 32px;
+  }
+  #mode-select.hidden { display: none; }
+  #mode-select .ms-title {
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, #f0a500, #e94560, #9b59b6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-align: center;
+    line-height: 1.2;
+  }
+  #mode-select .ms-sub {
+    font-size: 14px;
+    color: #888;
+    text-align: center;
+    letter-spacing: 1px;
+    margin-top: -8px;
+  }
+  .mode-btn {
+    width: 100%;
+    max-width: 280px;
+    padding: 20px 24px;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .mode-btn:active { transform: scale(0.97); }
+  .mode-btn-kid {
+    background: linear-gradient(135deg, #27ae60, #f1c40f);
+    box-shadow: 0 6px 28px rgba(39,174,96,0.4);
+  }
+  .mode-btn-adult {
+    background: linear-gradient(135deg, #e94560, #9b59b6);
+    box-shadow: 0 6px 28px rgba(233,69,96,0.4);
+  }
+  .mode-btn .btn-icon { font-size: 38px; line-height: 1; }
+  .mode-btn .btn-label {
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.35);
+  }
+  .mode-btn .btn-desc {
+    font-size: 12px;
+    color: rgba(255,255,255,0.85);
+    text-align: center;
+    line-height: 1.4;
+  }
+  #mode-badge {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-weight: 700;
+  }
+  #mode-badge.kid   { background: rgba(39,174,96,0.25); color: #2ecc71; }
+  #mode-badge.adult { background: rgba(233,69,96,0.25); color: #e94560; }
 </style>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -294,7 +374,10 @@
       <div id="score-label">Score</div>
       <div id="score">0</div>
     </div>
-    <div id="combo-box"><div id="combo"></div></div>
+    <div id="combo-box">
+      <div id="mode-badge" class="adult">Adult</div>
+      <div id="combo"></div>
+    </div>
     <div id="best-box">
       <div id="best-label">Best</div>
       <div id="best">0</div>
@@ -314,6 +397,21 @@
   <div class="final">Score: <span id="final-score">0</span></div>
   <div class="final">Best: <span id="final-best">0</span></div>
   <button id="restart-btn">PLAY AGAIN</button>
+</div>
+
+<div id="mode-select">
+  <div class="ms-title">Seb Blast!</div>
+  <div class="ms-sub">Choose your mode</div>
+  <button class="mode-btn mode-btn-kid" id="btn-kid">
+    <span class="btn-icon">🌟</span>
+    <span class="btn-label">KID MODE</span>
+    <span class="btn-desc">Easy pieces · Nearly-full rows to clear<br>Great for building combos!</span>
+  </button>
+  <button class="mode-btn mode-btn-adult" id="btn-adult">
+    <span class="btn-icon">💥</span>
+    <span class="btn-label">ADULT MODE</span>
+    <span class="btn-desc">All piece shapes · Sparser board<br>The real challenge!</span>
+  </button>
 </div>
 
 <script>
@@ -495,8 +593,27 @@ const PIECE_DEFS = [
 const PIECE_POOL = [];
 PIECE_DEFS.forEach(d => { for (let i = 0; i < d.weight; i++) PIECE_POOL.push(d); });
 
+// Kid mode: only tiny/small pieces so the board stays playable and lines clear easily
+const KID_PIECE_DEFS = [
+  { shape: [[1]],         color: 0 },
+  { shape: [[1,1]],       color: 1 },
+  { shape: [[1],[1]],     color: 1 },
+  { shape: [[1,1,1]],     color: 2 },
+  { shape: [[1],[1],[1]], color: 2 },
+  { shape: [[1,0],[1,1]], color: 3 },
+  { shape: [[0,1],[1,1]], color: 3 },
+  { shape: [[1,1],[1,0]], color: 3 },
+  { shape: [[1,1],[0,1]], color: 3 },
+  { shape: [[1,1],[1,1]], color: 5 },
+];
+const KID_PIECE_POOL = [];
+KID_PIECE_DEFS.forEach(d => { for (let i = 0; i < 5; i++) KID_PIECE_POOL.push(d); });
+
+let gameMode = 'adult'; // 'kid' or 'adult'
+
 function randPiece() {
-  const def = PIECE_POOL[Math.floor(Math.random() * PIECE_POOL.length)];
+  const pool = gameMode === 'kid' ? KID_PIECE_POOL : PIECE_POOL;
+  const def = pool[Math.floor(Math.random() * pool.length)];
   return { shape: def.shape, color: def.color };
 }
 
@@ -525,63 +642,82 @@ function generatePieces() {
 
 function initBoard() {
   board = Array.from({ length: ROWS }, () => Array(COLS).fill(-1));
-
   const colors = [0,1,2,3,4,5,6,7,8];
   function rc() { return colors[Math.floor(Math.random() * colors.length)]; }
 
-  // ── Seed strategy: fill the outer ring lightly, leave the centre wide open.
-  // This gives the player an obvious open play area right away while the
-  // nearly-complete border rows/cols reward early clears.
-
-  // 1) Nearly-complete top & bottom rows — leave exactly 3 gaps each
-  [0, 9].forEach(row => {
-    const gaps = new Set();
-    while (gaps.size < 3) gaps.add(Math.floor(Math.random() * COLS));
-    for (let c = 0; c < COLS; c++) if (!gaps.has(c)) board[row][c] = rc();
-  });
-
-  // 2) Nearly-complete left & right columns — leave 3 gaps, skip corners already filled
-  [0, 9].forEach(col => {
-    const gaps = new Set();
-    while (gaps.size < 3) gaps.add(Math.floor(Math.random() * ROWS));
-    for (let r = 0; r < ROWS; r++) if (!gaps.has(r) && board[r][col] === -1) board[r][col] = rc();
-  });
-
-  // 3) One partially-filled interior row and column to hint at combos —
-  //    fill only half the cells, leaving lots of room
-  const midRow = 4 + Math.floor(Math.random() * 2); // row 4 or 5
-  const midCol = 4 + Math.floor(Math.random() * 2); // col 4 or 5
-  for (let c = 0; c < COLS; c++) {
-    if (Math.random() < 0.45 && board[midRow][c] === -1) board[midRow][c] = rc();
-  }
-  for (let r = 0; r < ROWS; r++) {
-    if (Math.random() < 0.45 && board[r][midCol] === -1) board[r][midCol] = rc();
-  }
-
-  // 4) Total fill cap: keep it at ≤ 22% so the board feels open and inviting
-  let filled = board.flat().filter(v => v !== -1).length;
-  const cap = Math.floor(ROWS * COLS * 0.22);
-  if (filled > cap) {
-    // Remove random filled cells until we're under the cap
-    const filledCells = [];
+  if (gameMode === 'kid') {
+    // Kid mode: seed 4-5 nearly-complete rows so first moves almost always clear lines.
+    // Leave exactly 1-2 gaps per row so even a 1x1 or 1x2 piece finishes it.
+    const seedRows = [1, 3, 5, 7, 9];
+    seedRows.forEach(row => {
+      const gaps = new Set();
+      const numGaps = Math.random() < 0.5 ? 1 : 2;
+      while (gaps.size < numGaps) gaps.add(Math.floor(Math.random() * COLS));
+      for (let c = 0; c < COLS; c++) if (!gaps.has(c)) board[row][c] = rc();
+    });
+    // Also seed 2 nearly-complete columns for cross-combos
+    [2, 7].forEach(col => {
+      const gaps = new Set();
+      while (gaps.size < 2) gaps.add(Math.floor(Math.random() * ROWS));
+      for (let r = 0; r < ROWS; r++) if (!gaps.has(r) && board[r][col] === -1) board[r][col] = rc();
+    });
+    // Cap at 55% — kid board is busy but always clearable
+    let filled = board.flat().filter(v => v !== -1).length;
+    const cap = Math.floor(ROWS * COLS * 0.55);
+    if (filled > cap) {
+      const fc = [];
+      for (let r = 0; r < ROWS; r++)
+        for (let c = 0; c < COLS; c++)
+          if (board[r][c] !== -1 && ![1,3,5,7,9].includes(r)) fc.push([r,c]);
+      fc.sort(() => Math.random() - 0.5);
+      for (const [r,c] of fc) { if (filled <= cap) break; board[r][c] = -1; filled--; }
+    }
+  } else {
+    // Adult mode: light outer ring, open centre
+    [0, 9].forEach(row => {
+      const gaps = new Set();
+      while (gaps.size < 3) gaps.add(Math.floor(Math.random() * COLS));
+      for (let c = 0; c < COLS; c++) if (!gaps.has(c)) board[row][c] = rc();
+    });
+    [0, 9].forEach(col => {
+      const gaps = new Set();
+      while (gaps.size < 3) gaps.add(Math.floor(Math.random() * ROWS));
+      for (let r = 0; r < ROWS; r++) if (!gaps.has(r) && board[r][col] === -1) board[r][col] = rc();
+    });
+    const midRow = 4 + Math.floor(Math.random() * 2);
+    const midCol = 4 + Math.floor(Math.random() * 2);
+    for (let c = 0; c < COLS; c++)
+      if (Math.random() < 0.45 && board[midRow][c] === -1) board[midRow][c] = rc();
     for (let r = 0; r < ROWS; r++)
-      for (let c = 0; c < COLS; c++)
-        if (board[r][c] !== -1) filledCells.push([r, c]);
-    filledCells.sort(() => Math.random() - 0.5);
-    for (const [r, c] of filledCells) {
-      if (filled <= cap) break;
-      board[r][c] = -1; filled--;
+      if (Math.random() < 0.45 && board[r][midCol] === -1) board[r][midCol] = rc();
+    let filled = board.flat().filter(v => v !== -1).length;
+    const cap = Math.floor(ROWS * COLS * 0.22);
+    if (filled > cap) {
+      const fc = [];
+      for (let r = 0; r < ROWS; r++)
+        for (let c = 0; c < COLS; c++)
+          if (board[r][c] !== -1) fc.push([r,c]);
+      fc.sort(() => Math.random() - 0.5);
+      for (const [r,c] of fc) { if (filled <= cap) break; board[r][c] = -1; filled--; }
     }
   }
 }
 
-function initGame() {
+function initGame(mode) {
+  if (mode) gameMode = mode;
   score = 0; comboCount = 0;
-  best = parseInt(localStorage.getItem('seb_blast_best') || '0');
+  const bestKey = 'seb_blast_best_' + gameMode;
+  best = parseInt(localStorage.getItem(bestKey) || '0');
   initBoard();
   pieces = generatePieces();
   renderBoard(); renderTray(); updateScore();
   document.getElementById('gameover').classList.remove('show');
+  document.getElementById('mode-select').classList.add('hidden');
+  // Update badge
+  const badge = document.getElementById('mode-badge');
+  badge.className = 'mode-badge ' + gameMode;
+  badge.textContent = gameMode === 'kid' ? '🌟 Kid' : '💥 Adult';
+  badge.id = 'mode-badge'; // keep id
 }
 
 function renderBoard() {
@@ -946,13 +1082,19 @@ function hasAnyValidMove() {
 
 function triggerGameOver() {
   soundGameOver();
-  if (score > best) { best = score; localStorage.setItem('seb_blast_best', best); }
+  const bestKey = 'seb_blast_best_' + gameMode;
+  if (score > best) { best = score; localStorage.setItem(bestKey, best); }
   document.getElementById('final-score').textContent = score;
   document.getElementById('final-best').textContent = best;
   setTimeout(() => document.getElementById('gameover').classList.add('show'), 400);
 }
 
-document.getElementById('restart-btn').addEventListener('click', initGame);
+document.getElementById('restart-btn').addEventListener('click', () => {
+  document.getElementById('gameover').classList.remove('show');
+  document.getElementById('mode-select').classList.remove('hidden');
+});
+document.getElementById('btn-kid').addEventListener('click', () => initGame('kid'));
+document.getElementById('btn-adult').addEventListener('click', () => initGame('adult'));
 
 function setResponsiveCellSize() {
   const vw = window.innerWidth;
@@ -963,7 +1105,7 @@ function setResponsiveCellSize() {
 }
 window.addEventListener('resize', () => { setResponsiveCellSize(); renderBoard(); renderTray(); });
 setResponsiveCellSize();
-initGame();
+// Show mode select on first load — initGame is called when a mode is chosen
 </script>
 <script>
 if ("serviceWorker" in navigator) {
