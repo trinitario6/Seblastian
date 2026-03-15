@@ -659,14 +659,14 @@ function onDragMove(e) {
   highlightCells(pt.clientX, pt.clientY);
 }
 
-function onDragEnd(e) {
+async function onDragEnd(e) {
   const pt = e.changedTouches ? e.changedTouches[0] : e;
   clearHighlight();
   const anchor = getCenterAnchor(pt.clientX, pt.clientY);
   const placed = anchor ? tryPlace(dragging, anchor.r, anchor.c) : false;
   if (placed) {
     pieces[dragPieceIdx] = null;
-    checkAndClearLines();
+    await checkAndClearLines(); // wait for board to reflect cleared lines
     if (pieces.every(p => p === null)) {
       pieces = generatePieces();
       comboCount = 0;
@@ -805,7 +805,7 @@ function checkAndClearLines() {
   for (let r = 0; r < ROWS; r++) if (board[r].every(v => v !== -1)) rowsToClear.push(r);
   for (let c = 0; c < COLS; c++) if (board.map(row => row[c]).every(v => v !== -1)) colsToClear.push(c);
   const totalLines = rowsToClear.length + colsToClear.length;
-  if (totalLines === 0) { comboCount = 0; return; }
+  if (totalLines === 0) { comboCount = 0; return Promise.resolve(); }
   comboCount++;
 
   const cellsToClear = new Set();
@@ -834,13 +834,18 @@ function checkAndClearLines() {
     if (cell) cell.classList.add('clearing');
   });
 
-  setTimeout(() => {
-    rowsToClear.forEach(r => { for (let c = 0; c < COLS; c++) board[r][c] = -1; });
-    colsToClear.forEach(c => { for (let r = 0; r < ROWS; r++) board[r][c] = -1; });
-    const cleared = rowsToClear.length * COLS + colsToClear.length * ROWS - rowsToClear.length * colsToClear.length;
-    addScore(cleared, true, totalLines);
-    renderBoard();
-  }, 350);
+  // Return a promise that resolves AFTER the board is actually cleared,
+  // so callers can check valid moves against the true post-clear board state.
+  return new Promise(resolve => {
+    setTimeout(() => {
+      rowsToClear.forEach(r => { for (let c = 0; c < COLS; c++) board[r][c] = -1; });
+      colsToClear.forEach(c => { for (let r = 0; r < ROWS; r++) board[r][c] = -1; });
+      const cleared = rowsToClear.length * COLS + colsToClear.length * ROWS - rowsToClear.length * colsToClear.length;
+      addScore(cleared, true, totalLines);
+      renderBoard();
+      resolve();
+    }, 350);
+  });
 }
 
 function addScore(cells, isLine, lineCount) {
@@ -858,11 +863,11 @@ function addScore(cells, isLine, lineCount) {
 function showCombo(lines) {
   const el = document.getElementById('combo');
   let msg = '';
-  if (lines >= 2) msg = 'Sebtacular! 🚀';
-  else if (comboCount >= 2) msg = `×${comboCount} COMBO!`;
+  if (lines >= 2) msg += `${lines} LINES!`;
+  if (comboCount >= 2) msg += (msg ? ' ' : '') + `×${comboCount} COMBO!`;
   if (msg) {
     el.textContent = msg;
-    setTimeout(() => { el.textContent = ''; }, 2000);
+    setTimeout(() => { el.textContent = ''; }, 1600);
   } else {
     el.textContent = '';
   }
