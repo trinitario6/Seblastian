@@ -890,23 +890,25 @@ function addScore(cells, isLine, lineCount) {
 
 let _popToggle = 0;
 
-function showSebtacular() {
+function showPopup(text) {
   document.querySelectorAll('.sebtacular-pop').forEach(el => el.remove());
-  const isSeb = _popToggle % 2 === 0;
-  _popToggle++;
   const pop = document.createElement('div');
   pop.className = 'sebtacular-pop';
-  pop.textContent = isSeb ? '✨ Sebtacular! ✨' : '💫 Lawsome! 💫';
+  pop.textContent = text;
   document.body.appendChild(pop);
   pop.addEventListener('animationend', () => pop.remove());
-  return isSeb;
 }
 
 function showCombo(lines) {
   const el = document.getElementById('combo');
   let msg = '';
-  if (lines >= 2) {
-    const isSeb = showSebtacular();
+  if (lines >= 3) {
+    showPopup('💥 Siuperb! 💥');
+    msg = '💥 Siuperb!';
+  } else if (lines >= 2) {
+    const isSeb = _popToggle % 2 === 0;
+    _popToggle++;
+    showPopup(isSeb ? '✨ Sebtacular! ✨' : '💫 Lawsome! 💫');
     msg = isSeb ? 'Sebtacular! 🚀' : '💫 Lawsome!';
   }
   if (comboCount >= 2) msg += (msg ? ' ' : '') + `×${comboCount} COMBO!`;
