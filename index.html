@@ -1,391 +1,963 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#1a0a2e" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Fruit Merge" />
-  <meta name="description" content="A juicy offline fruit merge puzzle game" />
-  <link rel="manifest" href="manifest.json" />
-  <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <title>🍉 Fruit Merge</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;800&display=swap');
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f0f1a">
+<title>Seb Blast!</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: none; user-select: none; }
+  :root {
+    --bg: #0f0f1a;
+    --bg2: #1a1a2e;
+    --bg3: #16213e;
+    --accent: #e94560;
+    --gold: #f0a500;
+    --cell: 38px;
+    --gap: 2px;
+  }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', system-ui, sans-serif; }
 
-    :root {
-      --bg: #0d0820;
-      --panel: #1a1035;
-      --wall: #2a1f55;
-      --accent: #ff6b9d;
-      --accent2: #ffd93d;
-      --accent3: #6bcb77;
-      --text: #f0e6ff;
-      --shadow: rgba(255,107,157,0.3);
-    }
+  #app { display: flex; flex-direction: column; align-items: center; height: 100dvh; padding: 4px 8px 0; gap: 4px; }
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+  /* Title */
+  #title {
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, #f0a500, #e94560, #9b59b6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    padding: 2px 0;
+    filter: drop-shadow(0 0 8px rgba(233,69,96,0.4));
+  }
 
-    body {
-      background: var(--bg);
-      font-family: 'Nunito', sans-serif;
-      color: var(--text);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100dvh;
-      overflow: hidden;
-      position: relative;
-    }
+  /* Header */
+  #header { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 2px 8px; }
+  #score-box { text-align: center; }
+  #score-label { font-size: 10px; color: #888; letter-spacing: 2px; text-transform: uppercase; }
+  #score { font-size: 26px; font-weight: 700; color: #fff; line-height: 1; }
+  #best-box { text-align: center; }
+  #best-label { font-size: 10px; color: #888; letter-spacing: 2px; text-transform: uppercase; }
+  #best { font-size: 18px; font-weight: 600; color: var(--gold); line-height: 1; }
+  #combo-box { text-align: center; min-width: 70px; }
+  #combo { font-size: 13px; font-weight: 700; color: var(--accent); min-height: 18px; }
 
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background:
-        radial-gradient(ellipse 60% 50% at 20% 10%, rgba(108,60,200,0.25) 0%, transparent 60%),
-        radial-gradient(ellipse 40% 60% at 80% 80%, rgba(255,107,157,0.15) 0%, transparent 60%);
-      pointer-events: none;
-      z-index: 0;
-    }
+  /* Mute button */
+  #mute-btn {
+    position: absolute;
+    top: 6px; right: 8px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 20px;
+    color: #aaa;
+    font-size: 16px;
+    padding: 4px 10px;
+    cursor: pointer;
+    z-index: 10;
+  }
 
-    #app {
-      position: relative;
-      z-index: 1;
-      width: 100%;
-      max-width: 420px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 8px 12px 4px;
-      height: 100dvh;
-    }
+  /* Grid */
+  #grid-wrap { position: relative; }
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(10, var(--cell));
+    grid-template-rows: repeat(10, var(--cell));
+    gap: var(--gap);
+    background: var(--bg2);
+    border-radius: 12px;
+    padding: 6px;
+    border: 1px solid #2a2a4a;
+  }
+  .cell {
+    width: var(--cell);
+    height: var(--cell);
+    border-radius: 6px;
+    background: var(--bg3);
+    border: 1px solid #1e1e3a;
+    transition: background 0.08s, transform 0.08s;
+    position: relative;
+    overflow: hidden;
+  }
+  .cell.filled { border: 1px solid rgba(255,255,255,0.1); }
+  .cell.filled::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 2px; right: 2px;
+    height: 35%;
+    border-radius: 4px 4px 0 0;
+    background: rgba(255,255,255,0.25);
+  }
+  .cell.highlight { background: rgba(255,255,255,0.15) !important; border: 1px solid rgba(255,255,255,0.3) !important; }
+  .cell.invalid { background: rgba(233,69,96,0.2) !important; border: 1px solid rgba(233,69,96,0.4) !important; }
+  .cell.clearing { animation: clearPop 0.35s ease forwards; }
+  @keyframes clearPop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.15); filter: brightness(2); }
+    100% { transform: scale(0); opacity: 0; }
+  }
+  .cell.flash-row { animation: flashRow 0.15s ease; }
+  @keyframes flashRow {
+    0%,100% { filter: brightness(1); }
+    50% { filter: brightness(2.5); }
+  }
+  #grid-wrap.shake-sm { animation: shakeSm 0.35s ease; }
+  #grid-wrap.shake-md { animation: shakeMd 0.4s ease; }
+  #grid-wrap.shake-lg { animation: shakeLg 0.5s ease; }
+  @keyframes shakeSm {
+    0%,100% { transform: translate(0,0); }
+    20% { transform: translate(-4px, 2px); }
+    40% { transform: translate(4px, -2px); }
+    60% { transform: translate(-3px, 1px); }
+    80% { transform: translate(3px, -1px); }
+  }
+  @keyframes shakeMd {
+    0%,100% { transform: translate(0,0); }
+    15% { transform: translate(-7px, 3px); }
+    30% { transform: translate(7px, -3px); }
+    45% { transform: translate(-5px, 4px); }
+    60% { transform: translate(6px, -2px); }
+    75% { transform: translate(-4px, 2px); }
+    90% { transform: translate(3px, -1px); }
+  }
+  @keyframes shakeLg {
+    0%,100% { transform: translate(0,0) rotate(0deg); }
+    10% { transform: translate(-10px, 4px) rotate(-1deg); }
+    25% { transform: translate(10px, -4px) rotate(1deg); }
+    40% { transform: translate(-8px, 5px) rotate(-0.8deg); }
+    55% { transform: translate(9px, -3px) rotate(0.8deg); }
+    70% { transform: translate(-6px, 3px) rotate(-0.4deg); }
+    85% { transform: translate(5px, -2px) rotate(0.3deg); }
+  }
 
-    /* Header */
-    header {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 6px;
-    }
+  .score-pop {
+    position: absolute;
+    pointer-events: none;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--gold);
+    text-shadow: 0 0 8px var(--gold);
+    animation: floatUp 0.9s ease forwards;
+    z-index: 100;
+    white-space: nowrap;
+  }
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-60px) scale(1.2); }
+  }
+  .sebtacular-pop {
+    position: fixed;
+    pointer-events: none;
+    left: 50%;
+    top: 38%;
+    transform: translateX(-50%) scale(0);
+    z-index: 300;
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    background: linear-gradient(135deg, #f0a500, #e94560, #9b59b6, #f0a500);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 12px rgba(240,165,0,0.8));
+    animation: sebtacularPop 1.6s cubic-bezier(0.22,1,0.36,1) forwards;
+  }
+  @keyframes sebtacularPop {
+    0%   { transform: translateX(-50%) scale(0) rotate(-8deg); opacity: 0; }
+    18%  { transform: translateX(-50%) scale(1.25) rotate(3deg); opacity: 1; }
+    30%  { transform: translateX(-50%) scale(0.95) rotate(-1deg); opacity: 1; }
+    42%  { transform: translateX(-50%) scale(1.08) rotate(1deg); opacity: 1; }
+    60%  { transform: translateX(-50%) scale(1) rotate(0deg); opacity: 1; }
+    80%  { transform: translateX(-50%) scale(1) rotate(0deg); opacity: 1; }
+    100% { transform: translateX(-50%) scale(0.8) rotate(0deg) translateY(-30px); opacity: 0; }
+  }
 
-    h1 {
-      font-family: 'Fredoka One', sans-serif;
-      font-size: 1.7rem;
-      background: linear-gradient(135deg, #ff6b9d, #ffd93d, #6bcb77);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      letter-spacing: 1px;
-    }
+  /* Piece tray */
+  #tray {
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 6px 4px;
+    background: var(--bg2);
+    border-radius: 12px;
+    border: 1px solid #2a2a4a;
+    min-height: 90px;
+    flex: 0 0 auto;
+  }
+  .piece-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30%;
+    min-height: 80px;
+    cursor: pointer;
+    transition: transform 0.15s;
+    position: relative;
+  }
+  .piece-slot.used { opacity: 0.15; pointer-events: none; }
+  .piece-grid { display: grid; gap: 2px; }
+  .piece-cell {
+    width: 20px; height: 20px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.1);
+    position: relative;
+    overflow: hidden;
+  }
+  .piece-cell.filled::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 2px; right: 2px;
+    height: 35%;
+    border-radius: 3px 3px 0 0;
+    background: rgba(255,255,255,0.25);
+  }
 
-    .score-box {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      background: var(--panel);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 12px;
-      padding: 4px 14px;
-    }
-    .score-label { font-size: 0.6rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 1px; }
-    .score-value { font-family: 'Fredoka One', sans-serif; font-size: 1.3rem; color: var(--accent2); }
+  /* Ghost drag */
+  #ghost {
+    position: fixed;
+    pointer-events: none;
+    z-index: 999;
+    display: none;
+    opacity: 0.9;
+  }
+  #ghost .piece-grid { gap: 2px; }
+  #ghost .piece-cell { width: var(--cell); height: var(--cell); border-radius: 6px; overflow: hidden; transition: background 0.1s; }
+  #ghost.valid .piece-cell.filled   { background: #27ae60 !important; box-shadow: 0 0 8px rgba(39,174,96,0.6); }
+  #ghost.valid .piece-cell.filled::after { background: rgba(255,255,255,0.3); }
+  #ghost.invalid .piece-cell.filled { background: #e74c3c !important; box-shadow: 0 0 8px rgba(231,76,60,0.6); }
+  #ghost.invalid .piece-cell.filled::after { background: rgba(255,255,255,0.2); }
 
-    /* Next fruit preview */
-    .next-row {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 6px;
-    }
-    .next-label { font-size: 0.65rem; opacity: 0.5; text-transform: uppercase; letter-spacing: 1px; }
-    #next-preview {
-      width: 36px;
-      height: 36px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.6rem;
-      filter: drop-shadow(0 0 8px rgba(255,255,255,0.3));
-    }
+  /* Game over overlay */
+  #gameover {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    z-index: 200;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+  }
+  #gameover.show { display: flex; }
+  #gameover h1 { font-size: 34px; color: var(--accent); font-weight: 900; letter-spacing: 3px; }
+  #gameover .final { font-size: 17px; color: #aaa; }
+  #gameover .final span { color: #fff; font-weight: 700; font-size: 22px; }
+  #restart-btn {
+    padding: 14px 42px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 18px;
+    font-weight: 800;
+    border: none;
+    border-radius: 30px;
+    cursor: pointer;
+    letter-spacing: 2px;
+    box-shadow: 0 4px 24px rgba(233,69,96,0.5);
+  }
 
-    /* Drop line indicator */
-    #drop-line {
-      position: absolute;
-      top: 0;
-      width: 2px;
-      background: rgba(255,255,255,0.3);
-      border-radius: 1px;
-      pointer-events: none;
-      transition: left 0.05s;
-      display: none;
-    }
-
-    /* Game canvas wrapper */
-    #canvas-wrap {
-      position: relative;
-      width: 100%;
-      flex: 1;
-      display: flex;
-      align-items: flex-start;
-    }
-
-    #gameCanvas {
-      display: block;
-      width: 100%;
-      height: 100%;
-      border-radius: 18px;
-      border: 2px solid rgba(255,255,255,0.08);
-      background: var(--panel);
-      box-shadow: 0 0 40px rgba(108,60,200,0.3), inset 0 0 60px rgba(0,0,0,0.3);
-      cursor: crosshair;
-      touch-action: none;
-    }
-
-    /* Evolution bar */
-    #evo-bar {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 3px;
-      margin-top: 6px;
-      padding: 6px 10px;
-      background: var(--panel);
-      border-radius: 12px;
-      border: 1px solid rgba(255,255,255,0.06);
-    }
-    .evo-fruit {
-      font-size: 1.1rem;
-      opacity: 0.4;
-      transition: all 0.3s;
-      filter: grayscale(0.8);
-    }
-    .evo-arrow { font-size: 0.55rem; opacity: 0.25; }
-    .evo-fruit.unlocked { opacity: 1; filter: none; }
-
-    /* Overlay screens */
-    .overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(13,8,32,0.9);
-      backdrop-filter: blur(8px);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 100;
-      gap: 18px;
-    }
-    .overlay.hidden { display: none; }
-
-    .overlay h2 {
-      font-family: 'Fredoka One', sans-serif;
-      font-size: 2.5rem;
-      background: linear-gradient(135deg, #ff6b9d, #ffd93d);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .overlay-score {
-      font-size: 1.2rem;
-      opacity: 0.8;
-    }
-    .overlay-score span {
-      font-family: 'Fredoka One', sans-serif;
-      color: var(--accent2);
-      font-size: 2rem;
-    }
-
-    .btn {
-      font-family: 'Fredoka One', sans-serif;
-      font-size: 1.2rem;
-      padding: 14px 40px;
-      border-radius: 50px;
-      border: none;
-      cursor: pointer;
-      letter-spacing: 1px;
-      transition: transform 0.15s, box-shadow 0.15s;
-    }
-    .btn:active { transform: scale(0.96); }
-
-    .btn-primary {
-      background: linear-gradient(135deg, #ff6b9d, #ff8b6a);
-      color: white;
-      box-shadow: 0 6px 24px rgba(255,107,157,0.5);
-    }
-    .btn-primary:hover { box-shadow: 0 8px 32px rgba(255,107,157,0.7); transform: translateY(-2px); }
-
-    .best-label {
-      font-size: 0.75rem;
-      opacity: 0.5;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-    }
-
-    /* Toast for merges */
-    #toast {
-      position: fixed;
-      top: 60px;
-      left: 50%;
-      transform: translateX(-50%) translateY(-20px);
-      background: linear-gradient(135deg, #ff6b9d, #ffd93d);
-      color: #0d0820;
-      font-family: 'Fredoka One', sans-serif;
-      font-size: 1.1rem;
-      padding: 8px 20px;
-      border-radius: 50px;
-      opacity: 0;
-      pointer-events: none;
-      transition: all 0.3s;
-      z-index: 200;
-      white-space: nowrap;
-    }
-    #toast.show {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
-
-    /* PWA install banner */
-    #install-banner {
-      position: fixed;
-      bottom: 12px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--panel);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 14px;
-      padding: 10px 16px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      z-index: 300;
-      font-size: 0.8rem;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-      max-width: 340px;
-    }
-    #install-banner.hidden { display: none; }
-    #install-banner button {
-      background: var(--accent);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 5px 12px;
-      font-family: 'Fredoka One', sans-serif;
-      cursor: pointer;
-      font-size: 0.85rem;
-      white-space: nowrap;
-    }
-    #install-banner .dismiss {
-      background: transparent;
-      color: rgba(255,255,255,0.4);
-      padding: 5px;
-      font-size: 1rem;
-    }
-  </style>
+  /* Colors */
+  .c0 { background: #e74c3c; }
+  .c1 { background: #e67e22; }
+  .c2 { background: #f1c40f; }
+  .c3 { background: #2ecc71; }
+  .c4 { background: #1abc9c; }
+  .c5 { background: #3498db; }
+  .c6 { background: #9b59b6; }
+  .c7 { background: #e91e63; }
+  .c8 { background: #00bcd4; }
+</style>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 </head>
 <body>
 <div id="app">
-  <header>
-    <h1>🍉 Fruit Merge</h1>
-    <div style="display:flex;gap:8px">
-      <div class="score-box">
-        <span class="score-label">Score</span>
-        <span class="score-value" id="score-display">0</span>
-      </div>
-      <div class="score-box">
-        <span class="score-label">Best</span>
-        <span class="score-value" id="best-display">0</span>
-      </div>
+  <div id="title">Seb Blast!</div>
+  <div id="header">
+    <div id="score-box">
+      <div id="score-label">Score</div>
+      <div id="score">0</div>
     </div>
-  </header>
-
-  <div class="next-row">
-    <span class="next-label">Next</span>
-    <div id="next-preview">🍒</div>
-    <span style="font-size:0.65rem;opacity:0.4;margin-left:auto">Drop to merge!</span>
+    <div id="combo-box"><div id="combo"></div></div>
+    <div id="best-box">
+      <div id="best-label">Best</div>
+      <div id="best">0</div>
+    </div>
   </div>
-
-  <div id="canvas-wrap">
-    <canvas id="gameCanvas"></canvas>
+  <div id="grid-wrap">
+    <div id="grid"></div>
   </div>
-
-  <div id="evo-bar">
-    <span class="evo-fruit unlocked" id="evo-0">🍒</span>
-    <span class="evo-arrow">▶</span>
-    <span class="evo-fruit unlocked" id="evo-1">🍓</span>
-    <span class="evo-arrow">▶</span>
-    <span class="evo-fruit" id="evo-2">🍇</span>
-    <span class="evo-arrow">▶</span>
-    <span class="evo-fruit" id="evo-3">🍊</span>
-    <span class="evo-arrow">▶</span>
-    <span class="evo-fruit" id="evo-4">🍎</span>
-    <span class="evo-arrow">▶</span>
-    <span class="evo-fruit" id="evo-5">🍐</span>
-    <span class="evo-arrow">▶</span>
-    <span class="evo-fruit" id="evo-6">🍑</span>
-    <span class="evo-arrow">▶</span>
-    <span class="evo-fruit" id="evo-7">🍋</span>
-    <span class="evo-arrow">▶</span>
-    <span class="evo-fruit" id="evo-8">🍍</span>
-    <span class="evo-arrow">▶</span>
-    <span class="evo-fruit" id="evo-9">🥭</span>
-    <span class="evo-arrow">▶</span>
-    <span class="evo-fruit" id="evo-10">🍉</span>
-  </div>
+  <div id="tray"></div>
 </div>
 
-<!-- Overlays -->
-<div class="overlay" id="start-screen">
-  <div style="font-size:4rem">🍉</div>
-  <h2>Fruit Merge</h2>
-  <p style="opacity:0.6;text-align:center;max-width:280px;font-size:0.9rem">
-    Drop fruits to merge matching ones into bigger fruits.<br>Reach the 🍉 watermelon!
-  </p>
-  <button class="btn btn-primary" id="start-btn">Play Now</button>
+<button id="mute-btn" title="Toggle sound">🔊</button>
+<div id="ghost"><div class="piece-grid" id="ghost-grid"></div></div>
+
+<div id="gameover">
+  <h1>GAME OVER</h1>
+  <div class="final">Score: <span id="final-score">0</span></div>
+  <div class="final">Best: <span id="final-best">0</span></div>
+  <button id="restart-btn">PLAY AGAIN</button>
 </div>
 
-<div class="overlay hidden" id="gameover-screen">
-  <div style="font-size:3rem">💥</div>
-  <h2>Game Over!</h2>
-  <div class="overlay-score">Score: <span id="final-score">0</span></div>
-  <div class="best-label" id="new-best-label" style="display:none">🏆 New Best!</div>
-  <button class="btn btn-primary" id="restart-btn">Play Again</button>
-</div>
-
-<div id="toast"></div>
-
-<div id="install-banner" class="hidden">
-  <span>📲</span>
-  <span>Install for offline play!</span>
-  <button id="install-btn">Install</button>
-  <button class="dismiss" id="dismiss-banner">✕</button>
-</div>
-
-<script src="game.js"></script>
 <script>
-  // PWA install prompt
-  let deferredPrompt;
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    document.getElementById('install-banner').classList.remove('hidden');
+// ─── Audio Engine (Web Audio API) ────────────────────────────────────────────
+let audioCtx = null;
+let muted = false;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playTone(type, freq, duration, volume = 0.3, fadeOut = true) {
+  if (muted) return;
+  try {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    if (fadeOut) gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+  } catch(e) {}
+}
+
+function playChord(freqs, type, duration, volume = 0.18) {
+  freqs.forEach(f => playTone(type, f, duration, volume));
+}
+
+// Block drop: satisfying thud
+function soundDrop() {
+  if (muted) return;
+  try {
+    const ctx = getAudioCtx();
+    // Low thud using noise burst
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.08, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 200;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.4, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    src.start();
+    // Short click on top
+    playTone('sine', 120, 0.06, 0.25);
+  } catch(e) {}
+}
+
+// Single line clear: ascending sweep
+function soundLineClear(lineCount) {
+  if (muted) return;
+  try {
+    const ctx = getAudioCtx();
+    const notes = lineCount >= 4 ? [523, 659, 784, 1047, 1319] :
+                  lineCount >= 3 ? [523, 659, 784, 1047] :
+                  lineCount >= 2 ? [523, 659, 784] : [523, 659];
+    notes.forEach((freq, i) => {
+      setTimeout(() => playTone('square', freq, 0.18, 0.22), i * 55);
+    });
+    // Explosion crackle
+    setTimeout(() => {
+      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.25, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 1.5);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const bpf = ctx.createBiquadFilter();
+      bpf.type = 'bandpass';
+      bpf.frequency.value = 1200;
+      bpf.Q.value = 0.5;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.35, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+      src.connect(bpf);
+      bpf.connect(gain);
+      gain.connect(ctx.destination);
+      src.start();
+    }, notes.length * 55);
+  } catch(e) {}
+}
+
+// Combo: triumphant arpeggio
+function soundCombo(count) {
+  if (muted) return;
+  const scales = [
+    [523, 659, 784],
+    [659, 784, 988, 1047],
+    [784, 988, 1047, 1319, 1568],
+  ];
+  const notes = scales[Math.min(count - 2, scales.length - 1)];
+  notes.forEach((freq, i) => {
+    setTimeout(() => playTone('sawtooth', freq, 0.2, 0.18), i * 70);
   });
-  document.getElementById('install-btn').addEventListener('click', async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      deferredPrompt = null;
-      document.getElementById('install-banner').classList.add('hidden');
+}
+
+// Game over: descending sad tones
+function soundGameOver() {
+  if (muted) return;
+  [440, 370, 311, 261].forEach((freq, i) => {
+    setTimeout(() => playTone('sawtooth', freq, 0.4, 0.2), i * 160);
+  });
+}
+
+// Drag pickup: light tick
+function soundPickup() {
+  playTone('sine', 880, 0.06, 0.12);
+}
+
+document.getElementById('mute-btn').addEventListener('click', () => {
+  muted = !muted;
+  document.getElementById('mute-btn').textContent = muted ? '🔇' : '🔊';
+});
+
+// ─── Game Logic ───────────────────────────────────────────────────────────────
+const COLS = 10, ROWS = 10;
+let board = [], score = 0, best = 0, pieces = [], dragging = null, dragPieceIdx = -1, comboCount = 0;
+
+// Each entry: { shape, color, weight }  — higher weight = appears more often
+const PIECE_DEFS = [
+  // ── 1×1 single (weight 14 — very common, always fits) ────────────
+  { shape: [[1]],         color: 0, weight: 14 },
+  // ── 1×2 dominoes (weight 13) ─────────────────────────────────────
+  { shape: [[1,1]],       color: 1, weight: 13 },
+  { shape: [[1],[1]],     color: 1, weight: 13 },
+  // ── 1×3 trominoes (weight 12) ────────────────────────────────────
+  { shape: [[1,1,1]],     color: 2, weight: 12 },
+  { shape: [[1],[1],[1]], color: 2, weight: 12 },
+  // ── Small L / corner 2×2 (weight 12) ─────────────────────────────
+  { shape: [[1,0],[1,1]], color: 3, weight: 12 },
+  { shape: [[0,1],[1,1]], color: 3, weight: 12 },
+  { shape: [[1,1],[1,0]], color: 3, weight: 12 },
+  { shape: [[1,1],[0,1]], color: 3, weight: 12 },
+  // ── 2×2 square (weight 11) ────────────────────────────────────────
+  { shape: [[1,1],[1,1]], color: 5, weight: 11 },
+  // ── Straight 4 (weight 8) ─────────────────────────────────────────
+  { shape: [[1,1,1,1]],           color: 3, weight: 8 },
+  { shape: [[1],[1],[1],[1]],     color: 3, weight: 8 },
+  // ── Big L shapes (weight 5) ───────────────────────────────────────
+  { shape: [[1,0],[1,0],[1,1]], color: 8, weight: 5 },
+  { shape: [[0,1],[0,1],[1,1]], color: 8, weight: 5 },
+  { shape: [[1,1],[1,0],[1,0]], color: 8, weight: 5 },
+  { shape: [[1,1],[0,1],[0,1]], color: 8, weight: 5 },
+  { shape: [[1,0,0],[1,1,1]],   color: 0, weight: 5 },
+  { shape: [[0,0,1],[1,1,1]],   color: 0, weight: 5 },
+  { shape: [[1,1,1],[1,0,0]],   color: 0, weight: 5 },
+  { shape: [[1,1,1],[0,0,1]],   color: 0, weight: 5 },
+  // ── T shapes (weight 4) ───────────────────────────────────────────
+  { shape: [[1,1,1],[0,1,0]], color: 1, weight: 4 },
+  { shape: [[0,1,0],[1,1,1]], color: 1, weight: 4 },
+  { shape: [[1,0],[1,1],[1,0]], color: 1, weight: 4 },
+  { shape: [[0,1],[1,1],[0,1]], color: 1, weight: 4 },
+  // ── S/Z shapes (weight 3) ─────────────────────────────────────────
+  { shape: [[0,1,1],[1,1,0]], color: 2, weight: 3 },
+  { shape: [[1,1,0],[0,1,1]], color: 2, weight: 3 },
+  { shape: [[1,0],[1,1],[0,1]], color: 2, weight: 3 },
+  { shape: [[0,1],[1,1],[1,0]], color: 2, weight: 3 },
+  // ── Straight 5 (weight 3) — less common now ───────────────────────
+  { shape: [[1,1,1,1,1]],         color: 4, weight: 3 },
+  { shape: [[1],[1],[1],[1],[1]], color: 4, weight: 3 },
+  // ── 2×3 / 3×2 blocks (weight 1 — rare) ───────────────────────────
+  { shape: [[1,1,1],[1,1,1]],   color: 6, weight: 1 },
+  { shape: [[1,1],[1,1],[1,1]], color: 6, weight: 1 },
+  // ── 3×3 solid (weight 0 — removed, too punishing) ─────────────────
+];
+
+// Build a flat weighted pool once
+const PIECE_POOL = [];
+PIECE_DEFS.forEach(d => { for (let i = 0; i < d.weight; i++) PIECE_POOL.push(d); });
+
+function randPiece() {
+  const def = PIECE_POOL[Math.floor(Math.random() * PIECE_POOL.length)];
+  return { shape: def.shape, color: def.color };
+}
+
+function pieceCanFitAnywhere(piece) {
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (canPlace(piece, r, c)) return true;
+  return false;
+}
+
+// Generate 3 pieces, guaranteeing ALL 3 fit somewhere on the current board
+function generatePieces() {
+  const ps = [];
+  for (let slot = 0; slot < 3; slot++) {
+    let attempts = 0, piece;
+    do {
+      piece = randPiece();
+      attempts++;
+    } while (!pieceCanFitAnywhere(piece) && attempts < 60);
+    // Final safety: 1×1 always fits
+    if (!pieceCanFitAnywhere(piece)) piece = { shape: [[1]], color: Math.floor(Math.random() * 9) };
+    ps.push(piece);
+  }
+  return ps;
+}
+
+function initBoard() {
+  board = Array.from({ length: ROWS }, () => Array(COLS).fill(-1));
+
+  const colors = [0,1,2,3,4,5,6,7,8];
+  function rc() { return colors[Math.floor(Math.random() * colors.length)]; }
+
+  // ── Seed strategy: fill the outer ring lightly, leave the centre wide open.
+  // This gives the player an obvious open play area right away while the
+  // nearly-complete border rows/cols reward early clears.
+
+  // 1) Nearly-complete top & bottom rows — leave exactly 3 gaps each
+  [0, 9].forEach(row => {
+    const gaps = new Set();
+    while (gaps.size < 3) gaps.add(Math.floor(Math.random() * COLS));
+    for (let c = 0; c < COLS; c++) if (!gaps.has(c)) board[row][c] = rc();
+  });
+
+  // 2) Nearly-complete left & right columns — leave 3 gaps, skip corners already filled
+  [0, 9].forEach(col => {
+    const gaps = new Set();
+    while (gaps.size < 3) gaps.add(Math.floor(Math.random() * ROWS));
+    for (let r = 0; r < ROWS; r++) if (!gaps.has(r) && board[r][col] === -1) board[r][col] = rc();
+  });
+
+  // 3) One partially-filled interior row and column to hint at combos —
+  //    fill only half the cells, leaving lots of room
+  const midRow = 4 + Math.floor(Math.random() * 2); // row 4 or 5
+  const midCol = 4 + Math.floor(Math.random() * 2); // col 4 or 5
+  for (let c = 0; c < COLS; c++) {
+    if (Math.random() < 0.45 && board[midRow][c] === -1) board[midRow][c] = rc();
+  }
+  for (let r = 0; r < ROWS; r++) {
+    if (Math.random() < 0.45 && board[r][midCol] === -1) board[r][midCol] = rc();
+  }
+
+  // 4) Total fill cap: keep it at ≤ 22% so the board feels open and inviting
+  let filled = board.flat().filter(v => v !== -1).length;
+  const cap = Math.floor(ROWS * COLS * 0.22);
+  if (filled > cap) {
+    // Remove random filled cells until we're under the cap
+    const filledCells = [];
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++)
+        if (board[r][c] !== -1) filledCells.push([r, c]);
+    filledCells.sort(() => Math.random() - 0.5);
+    for (const [r, c] of filledCells) {
+      if (filled <= cap) break;
+      board[r][c] = -1; filled--;
     }
+  }
+}
+
+function initGame() {
+  score = 0; comboCount = 0;
+  best = parseInt(localStorage.getItem('seb_blast_best') || '0');
+  initBoard();
+  pieces = generatePieces();
+  renderBoard(); renderTray(); updateScore();
+  document.getElementById('gameover').classList.remove('show');
+}
+
+function renderBoard() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.r = r; cell.dataset.c = c;
+      if (board[r][c] !== -1) cell.classList.add('filled', 'c' + board[r][c]);
+      grid.appendChild(cell);
+    }
+  }
+}
+
+function renderTray() {
+  const tray = document.getElementById('tray');
+  tray.innerHTML = '';
+  pieces.forEach((p, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'piece-slot' + (p === null ? ' used' : '');
+    if (p) {
+      slot.appendChild(buildPieceGrid(p, 20, 2));
+      slot.addEventListener('touchstart', e => startDrag(e, i), { passive: false });
+      slot.addEventListener('mousedown', e => startDrag(e, i));
+    }
+    tray.appendChild(slot);
   });
-  document.getElementById('dismiss-banner').addEventListener('click', () => {
-    document.getElementById('install-banner').classList.add('hidden');
+}
+
+function buildPieceGrid(piece, cellSize, gap) {
+  const pg = document.createElement('div');
+  pg.className = 'piece-grid';
+  const rows = piece.shape.length, cols = piece.shape[0].length;
+  pg.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+  pg.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
+  pg.style.gap = gap + 'px';
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'piece-cell';
+      if (piece.shape[r][c]) cell.classList.add('filled', 'c' + piece.color);
+      pg.appendChild(cell);
+    }
+  }
+  return pg;
+}
+
+function updateScore() {
+  document.getElementById('score').textContent = score;
+  document.getElementById('best').textContent = best;
+}
+
+function startDrag(e, idx) {
+  e.preventDefault();
+  if (pieces[idx] === null) return;
+  soundPickup();
+  dragPieceIdx = idx;
+  dragging = pieces[idx];
+  const ghost = document.getElementById('ghost');
+  const ghostGrid = document.getElementById('ghost-grid');
+  ghostGrid.innerHTML = '';
+  const cols = dragging.shape[0].length;
+  // Match ghost cell size exactly to the live board cell size
+  const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 38;
+  ghostGrid.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+  ghostGrid.style.gridTemplateRows = `repeat(${dragging.shape.length}, ${cellSize}px)`;
+  ghostGrid.style.gap = '2px';
+  for (let r = 0; r < dragging.shape.length; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'piece-cell';
+      if (dragging.shape[r][c]) cell.classList.add('filled', 'c' + dragging.color);
+      ghostGrid.appendChild(cell);
+    }
+  }
+  const pt = e.touches ? e.touches[0] : e;
+  ghost.style.display = 'block';
+  positionGhost(pt.clientX, pt.clientY);
+  document.addEventListener('touchmove', onDragMove, { passive: false });
+  document.addEventListener('touchend', onDragEnd);
+  document.addEventListener('mousemove', onDragMove);
+  document.addEventListener('mouseup', onDragEnd);
+}
+
+// Single source of truth: where the ghost's top-left pixel should be.
+// Uses the live board --cell size so ghost always matches the grid exactly.
+// When over the board, highlightCells overrides this with a snapped position.
+function ghostTopLeft(x, y) {
+  const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 38;
+  const step = cellSize + 2;
+  const cols = dragging.shape[0].length, rows = dragging.shape.length;
+  const W = cols * cellSize + (cols - 1) * 2;
+  const H = rows * cellSize + (rows - 1) * 2;
+  return { left: x - W / 2, top: y - H / 2 - 60 };
+}
+
+function positionGhost(x, y) {
+  const { left, top } = ghostTopLeft(x, y);
+  const ghost = document.getElementById('ghost');
+  ghost.style.left = left + 'px';
+  ghost.style.top  = top  + 'px';
+}
+
+function onDragMove(e) {
+  e.preventDefault();
+  const pt = e.touches ? e.touches[0] : e;
+  positionGhost(pt.clientX, pt.clientY);
+  highlightCells(pt.clientX, pt.clientY);
+}
+
+async function onDragEnd(e) {
+  const pt = e.changedTouches ? e.changedTouches[0] : e;
+  clearHighlight();
+  const anchor = getCenterAnchor(pt.clientX, pt.clientY);
+  const placed = anchor ? tryPlace(dragging, anchor.r, anchor.c) : false;
+  if (placed) {
+    pieces[dragPieceIdx] = null;
+    await checkAndClearLines(); // wait for board to reflect cleared lines
+    if (pieces.every(p => p === null)) {
+      pieces = generatePieces();
+      comboCount = 0;
+    }
+    renderTray();
+    if (!hasAnyValidMove()) triggerGameOver();
+  } else {
+    comboCount = 0;
+    if (anchor) playTone('sine', 220, 0.12, 0.2);
+  }
+  document.getElementById('ghost').style.display = 'none';
+  document.getElementById('ghost').classList.remove('valid', 'invalid');
+  dragging = null; dragPieceIdx = -1;
+  document.removeEventListener('touchmove', onDragMove);
+  document.removeEventListener('touchend', onDragEnd);
+  document.removeEventListener('mousemove', onDragMove);
+  document.removeEventListener('mouseup', onDragEnd);
+}
+
+function getBoardCellAt(x, y) {
+  const grid = document.getElementById('grid');
+  const rect = grid.getBoundingClientRect();
+  const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 38;
+  const gap = 2, pad = 6;
+  const ox = x - rect.left - pad, oy = y - rect.top - pad;
+  const step = cellSize + gap;
+  const c = Math.floor(ox / step), r = Math.floor(oy / step);
+  if (r >= 0 && r < ROWS && c >= 0 && c < COLS) return { r, c };
+  return null;
+}
+
+function getCenterAnchor(x, y) {
+  const { left: ghostLeft, top: ghostTop } = ghostTopLeft(x, y);
+  const grid = document.getElementById('grid');
+  const rect = grid.getBoundingClientRect();
+  const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 38;
+  const step = cellSize + 2;
+  const pad  = 6;
+
+  const anchorC = Math.round((ghostLeft - rect.left - pad) / step);
+  const anchorR = Math.round((ghostTop  - rect.top  - pad) / step);
+
+  // If exact anchor is valid, use it
+  if (canPlace(dragging, anchorR, anchorC)) {
+    return { r: anchorR, c: anchorC, valid: true };
+  }
+
+  // On drop only: try a small 1-cell nudge so near-misses still land
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      if (canPlace(dragging, anchorR + dr, anchorC + dc)) {
+        return { r: anchorR + dr, c: anchorC + dc, valid: true };
+      }
+    }
+  }
+
+  return { r: anchorR, c: anchorC, valid: false };
+}
+
+function highlightCells(x, y) {
+  clearHighlight();
+  if (!dragging) return;
+
+  const ghost = document.getElementById('ghost');
+  const grid = document.getElementById('grid');
+  const rect = grid.getBoundingClientRect();
+  const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 38;
+  const step = cellSize + 2;
+  const pad  = 6;
+
+  // Ghost always follows the finger — never force-snap it to a valid cell
+  positionGhost(x, y);
+
+  // Compute raw anchor from ghost top-left position
+  const { left: ghostLeft, top: ghostTop } = ghostTopLeft(x, y);
+  const anchorC = Math.round((ghostLeft - rect.left - pad) / step);
+  const anchorR = Math.round((ghostTop  - rect.top  - pad) / step);
+
+  // Check if the raw anchor position is valid
+  const valid = canPlace(dragging, anchorR, anchorC);
+  ghost.classList.remove('valid', 'invalid');
+
+  // Only show a colour and highlight when we're close enough to the board
+  // to be a meaningful placement (piece overlaps the grid area)
+  const overBoard = anchorR > -dragging.shape.length && anchorR < ROWS &&
+                    anchorC > -dragging.shape[0].length && anchorC < COLS;
+  if (!overBoard) return;
+
+  ghost.classList.add(valid ? 'valid' : 'invalid');
+
+  for (let r = 0; r < dragging.shape.length; r++) {
+    for (let c = 0; c < dragging.shape[0].length; c++) {
+      if (!dragging.shape[r][c]) continue;
+      const gr = anchorR + r, gc = anchorC + c;
+      if (gr < 0 || gr >= ROWS || gc < 0 || gc >= COLS) continue;
+      const cell = grid.children[gr * COLS + gc];
+      if (cell) cell.classList.add(valid ? 'highlight' : 'invalid');
+    }
+  }
+}
+
+function clearHighlight() {
+  document.querySelectorAll('.cell.highlight, .cell.invalid').forEach(c => c.classList.remove('highlight', 'invalid'));
+}
+
+function canPlace(piece, r, c) {
+  for (let pr = 0; pr < piece.shape.length; pr++) {
+    for (let pc = 0; pc < piece.shape[0].length; pc++) {
+      if (!piece.shape[pr][pc]) continue;
+      const gr = r + pr, gc = c + pc;
+      if (gr < 0 || gr >= ROWS || gc < 0 || gc >= COLS || board[gr][gc] !== -1) return false;
+    }
+  }
+  return true;
+}
+
+function tryPlace(piece, anchorR, anchorC) {
+  if (!canPlace(piece, anchorR, anchorC)) return false;
+  let cellCount = 0;
+  for (let pr = 0; pr < piece.shape.length; pr++) {
+    for (let pc = 0; pc < piece.shape[0].length; pc++) {
+      if (!piece.shape[pr][pc]) continue;
+      board[anchorR + pr][anchorC + pc] = piece.color;
+      cellCount++;
+    }
+  }
+  soundDrop();
+  addScore(cellCount, false, null);
+  renderBoard();
+  return true;
+}
+
+function checkAndClearLines() {
+  const rowsToClear = [], colsToClear = [];
+  for (let r = 0; r < ROWS; r++) if (board[r].every(v => v !== -1)) rowsToClear.push(r);
+  for (let c = 0; c < COLS; c++) if (board.map(row => row[c]).every(v => v !== -1)) colsToClear.push(c);
+  const totalLines = rowsToClear.length + colsToClear.length;
+  if (totalLines === 0) { comboCount = 0; return Promise.resolve(); }
+  comboCount++;
+
+  const cellsToClear = new Set();
+  rowsToClear.forEach(r => { for (let c = 0; c < COLS; c++) cellsToClear.add(r * COLS + c); });
+  colsToClear.forEach(c => { for (let r = 0; r < ROWS; r++) cellsToClear.add(r * COLS + c); });
+
+  // Play blast sound immediately
+  soundLineClear(totalLines);
+  if (comboCount >= 2) setTimeout(() => soundCombo(comboCount), 200);
+
+  // Shake the grid — intensity scales with lines cleared and combo
+  const gridWrap = document.getElementById('grid-wrap');
+  const shakeClass = (totalLines >= 4 || comboCount >= 3) ? 'shake-lg'
+                   : (totalLines >= 2 || comboCount >= 2) ? 'shake-md'
+                   : 'shake-sm';
+  gridWrap.classList.remove('shake-sm', 'shake-md', 'shake-lg');
+  void gridWrap.offsetWidth; // force reflow so re-triggering works
+  gridWrap.classList.add(shakeClass);
+  gridWrap.addEventListener('animationend', () => {
+    gridWrap.classList.remove('shake-sm', 'shake-md', 'shake-lg');
+  }, { once: true });
+
+  const gridEl = document.getElementById('grid');
+  cellsToClear.forEach(idx => {
+    const cell = gridEl.children[idx];
+    if (cell) cell.classList.add('clearing');
   });
+
+  // Return a promise that resolves AFTER the board is actually cleared,
+  // so callers can check valid moves against the true post-clear board state.
+  return new Promise(resolve => {
+    setTimeout(() => {
+      rowsToClear.forEach(r => { for (let c = 0; c < COLS; c++) board[r][c] = -1; });
+      colsToClear.forEach(c => { for (let r = 0; r < ROWS; r++) board[r][c] = -1; });
+      const cleared = rowsToClear.length * COLS + colsToClear.length * ROWS - rowsToClear.length * colsToClear.length;
+      addScore(cleared, true, totalLines);
+      renderBoard();
+      resolve();
+    }, 350);
+  });
+}
+
+function addScore(cells, isLine, lineCount) {
+  let pts = cells * 10;
+  if (isLine) {
+    pts += lineCount * 50;
+    if (comboCount > 1) pts += (comboCount - 1) * 100;
+  }
+  score += pts;
+  if (score > best) { best = score; localStorage.setItem('seb_blast_best', best); }
+  updateScore();
+  if (isLine) { showCombo(lineCount); showScorePop(pts); }
+}
+
+let _popToggle = 0;
+
+function showSebtacular() {
+  document.querySelectorAll('.sebtacular-pop').forEach(el => el.remove());
+  const isSeb = _popToggle % 2 === 0;
+  _popToggle++;
+  const pop = document.createElement('div');
+  pop.className = 'sebtacular-pop';
+  pop.textContent = isSeb ? '✨ Sebtacular! ✨' : '💫 Lawsome! 💫';
+  document.body.appendChild(pop);
+  pop.addEventListener('animationend', () => pop.remove());
+  return isSeb;
+}
+
+function showCombo(lines) {
+  const el = document.getElementById('combo');
+  let msg = '';
+  if (lines >= 2) {
+    const isSeb = showSebtacular();
+    msg = isSeb ? 'Sebtacular! 🚀' : '💫 Lawsome!';
+  }
+  if (comboCount >= 2) msg += (msg ? ' ' : '') + `×${comboCount} COMBO!`;
+  if (msg) {
+    el.textContent = msg;
+    setTimeout(() => { el.textContent = ''; }, 2000);
+  } else {
+    el.textContent = '';
+  }
+}
+
+function showScorePop(pts) {
+  const wrap = document.getElementById('grid-wrap');
+  const pop = document.createElement('div');
+  pop.className = 'score-pop';
+  pop.textContent = '+' + pts;
+  pop.style.top = Math.random() * 40 + 30 + '%';
+  pop.style.left = Math.random() * 50 + 25 + '%';
+  wrap.appendChild(pop);
+  pop.addEventListener('animationend', () => pop.remove());
+}
+
+function hasAnyValidMove() {
+  return pieces.some(p => p !== null && pieceCanFitAnywhere(p));
+}
+
+function triggerGameOver() {
+  soundGameOver();
+  if (score > best) { best = score; localStorage.setItem('seb_blast_best', best); }
+  document.getElementById('final-score').textContent = score;
+  document.getElementById('final-best').textContent = best;
+  setTimeout(() => document.getElementById('gameover').classList.add('show'), 400);
+}
+
+document.getElementById('restart-btn').addEventListener('click', initGame);
+
+function setResponsiveCellSize() {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const gridSpace = Math.min(vw - 20, vh * 0.54);
+  const cell = Math.floor((gridSpace - 12 - 9 * 2) / 10);
+  document.documentElement.style.setProperty('--cell', cell + 'px');
+}
+window.addEventListener('resize', () => { setResponsiveCellSize(); renderBoard(); renderTray(); });
+setResponsiveCellSize();
+initGame();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register("./sw.js").catch(()=>{}); });
+}
 </script>
 </body>
 </html>
