@@ -107,6 +107,34 @@
     0%,100% { filter: brightness(1); }
     50% { filter: brightness(2.5); }
   }
+  #grid-wrap.shake-sm { animation: shakeSm 0.35s ease; }
+  #grid-wrap.shake-md { animation: shakeMd 0.4s ease; }
+  #grid-wrap.shake-lg { animation: shakeLg 0.5s ease; }
+  @keyframes shakeSm {
+    0%,100% { transform: translate(0,0); }
+    20% { transform: translate(-4px, 2px); }
+    40% { transform: translate(4px, -2px); }
+    60% { transform: translate(-3px, 1px); }
+    80% { transform: translate(3px, -1px); }
+  }
+  @keyframes shakeMd {
+    0%,100% { transform: translate(0,0); }
+    15% { transform: translate(-7px, 3px); }
+    30% { transform: translate(7px, -3px); }
+    45% { transform: translate(-5px, 4px); }
+    60% { transform: translate(6px, -2px); }
+    75% { transform: translate(-4px, 2px); }
+    90% { transform: translate(3px, -1px); }
+  }
+  @keyframes shakeLg {
+    0%,100% { transform: translate(0,0) rotate(0deg); }
+    10% { transform: translate(-10px, 4px) rotate(-1deg); }
+    25% { transform: translate(10px, -4px) rotate(1deg); }
+    40% { transform: translate(-8px, 5px) rotate(-0.8deg); }
+    55% { transform: translate(9px, -3px) rotate(0.8deg); }
+    70% { transform: translate(-6px, 3px) rotate(-0.4deg); }
+    85% { transform: translate(5px, -2px) rotate(0.3deg); }
+  }
 
   .score-pop {
     position: absolute;
@@ -671,67 +699,72 @@ function getBoardCellAt(x, y) {
 }
 
 function getCenterAnchor(x, y) {
-  // Use the exact same ghost pixel position that positionGhost uses,
-  // then map that onto the board grid. This guarantees the highlight
-  // always lines up with what the player sees.
   const { left: ghostLeft, top: ghostTop } = ghostTopLeft(x, y);
-
   const grid = document.getElementById('grid');
   const rect = grid.getBoundingClientRect();
   const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 38;
-  const step = cellSize + 2; // cell + gap
-  const pad  = 6;            // grid padding
+  const step = cellSize + 2;
+  const pad  = 6;
 
-  // Map ghost top-left pixel → board anchor cell (top-left cell of piece)
   const anchorC = Math.round((ghostLeft - rect.left - pad) / step);
   const anchorR = Math.round((ghostTop  - rect.top  - pad) / step);
 
-  // If exact anchor is valid, use it directly
+  // If exact anchor is valid, use it
   if (canPlace(dragging, anchorR, anchorC)) {
     return { r: anchorR, c: anchorC, valid: true };
   }
 
-  // Otherwise snap to nearest valid position within 2-cell radius
-  let bestR = anchorR, bestC = anchorC, bestDist = Infinity;
-  for (let dr = -2; dr <= 2; dr++) {
-    for (let dc = -2; dc <= 2; dc++) {
-      const tr = anchorR + dr, tc = anchorC + dc;
-      if (canPlace(dragging, tr, tc)) {
-        const dist = dr * dr + dc * dc;
-        if (dist < bestDist) { bestDist = dist; bestR = tr; bestC = tc; }
+  // On drop only: try a small 1-cell nudge so near-misses still land
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      if (canPlace(dragging, anchorR + dr, anchorC + dc)) {
+        return { r: anchorR + dr, c: anchorC + dc, valid: true };
       }
     }
   }
-  return { r: bestR, c: bestC, valid: bestDist < Infinity };
+
+  return { r: anchorR, c: anchorC, valid: false };
 }
 
 function highlightCells(x, y) {
   clearHighlight();
   if (!dragging) return;
-  const anchor = getCenterAnchor(x, y);
-  if (!anchor) return;
 
   const ghost = document.getElementById('ghost');
-  ghost.classList.remove('valid', 'invalid');
-  ghost.classList.add(anchor.valid ? 'valid' : 'invalid');
-
-  // Snap the ghost visually onto the exact grid cells it will land on —
-  // this makes ghost + highlight + drop all perfectly coincident.
   const grid = document.getElementById('grid');
   const rect = grid.getBoundingClientRect();
   const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 38;
-  const step = cellSize + 2; // cell + 2px gap
-  const pad  = 6;            // grid padding
-  ghost.style.left = (rect.left + pad + anchor.c * step) + 'px';
-  ghost.style.top  = (rect.top  + pad + anchor.r * step) + 'px';
+  const step = cellSize + 2;
+  const pad  = 6;
+
+  // Ghost always follows the finger — never force-snap it to a valid cell
+  positionGhost(x, y);
+
+  // Compute raw anchor from ghost top-left position
+  const { left: ghostLeft, top: ghostTop } = ghostTopLeft(x, y);
+  const anchorC = Math.round((ghostLeft - rect.left - pad) / step);
+  const anchorR = Math.round((ghostTop  - rect.top  - pad) / step);
+
+  // Check if the raw anchor position is valid
+  const valid = canPlace(dragging, anchorR, anchorC);
+  ghost.classList.remove('valid', 'invalid');
+
+  // Only show a colour and highlight when we're close enough to the board
+  // to be a meaningful placement (piece overlaps the grid area)
+  const overBoard = anchorR > -dragging.shape.length && anchorR < ROWS &&
+                    anchorC > -dragging.shape[0].length && anchorC < COLS;
+  if (!overBoard) return;
+
+  ghost.classList.add(valid ? 'valid' : 'invalid');
 
   for (let r = 0; r < dragging.shape.length; r++) {
     for (let c = 0; c < dragging.shape[0].length; c++) {
       if (!dragging.shape[r][c]) continue;
-      const gr = anchor.r + r, gc = anchor.c + c;
+      const gr = anchorR + r, gc = anchorC + c;
       if (gr < 0 || gr >= ROWS || gc < 0 || gc >= COLS) continue;
       const cell = grid.children[gr * COLS + gc];
-      if (cell) cell.classList.add(anchor.valid ? 'highlight' : 'invalid');
+      if (cell) cell.classList.add(valid ? 'highlight' : 'invalid');
     }
   }
 }
@@ -782,6 +815,18 @@ function checkAndClearLines() {
   // Play blast sound immediately
   soundLineClear(totalLines);
   if (comboCount >= 2) setTimeout(() => soundCombo(comboCount), 200);
+
+  // Shake the grid — intensity scales with lines cleared and combo
+  const gridWrap = document.getElementById('grid-wrap');
+  const shakeClass = (totalLines >= 4 || comboCount >= 3) ? 'shake-lg'
+                   : (totalLines >= 2 || comboCount >= 2) ? 'shake-md'
+                   : 'shake-sm';
+  gridWrap.classList.remove('shake-sm', 'shake-md', 'shake-lg');
+  void gridWrap.offsetWidth; // force reflow so re-triggering works
+  gridWrap.classList.add(shakeClass);
+  gridWrap.addEventListener('animationend', () => {
+    gridWrap.classList.remove('shake-sm', 'shake-md', 'shake-lg');
+  }, { once: true });
 
   const gridEl = document.getElementById('grid');
   cellsToClear.forEach(idx => {
