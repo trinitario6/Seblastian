@@ -382,56 +382,143 @@ document.getElementById('mute-btn').addEventListener('click', () => {
 const COLS = 10, ROWS = 10;
 let board = [], score = 0, best = 0, pieces = [], dragging = null, dragPieceIdx = -1, comboCount = 0;
 
+// Each entry: { shape, color, weight }  — higher weight = appears more often
 const PIECE_DEFS = [
-  { shape: [[1]], color: 0 },
-  { shape: [[1,1]], color: 1 },
-  { shape: [[1],[1]], color: 1 },
-  { shape: [[1,1,1]], color: 2 },
-  { shape: [[1],[1],[1]], color: 2 },
-  { shape: [[1,1,1,1]], color: 3 },
-  { shape: [[1],[1],[1],[1]], color: 3 },
-  { shape: [[1,1,1,1,1]], color: 4 },
-  { shape: [[1],[1],[1],[1],[1]], color: 4 },
-  { shape: [[1,1],[1,1]], color: 5 },
-  { shape: [[1,1,1],[1,1,1]], color: 6 },
-  { shape: [[1,1],[1,1],[1,1]], color: 6 },
-  { shape: [[1,1,1],[1,1,1],[1,1,1]], color: 7 },
-  { shape: [[1,0],[1,0],[1,1]], color: 8 },
-  { shape: [[0,1],[0,1],[1,1]], color: 8 },
-  { shape: [[1,1],[1,0],[1,0]], color: 8 },
-  { shape: [[1,1],[0,1],[0,1]], color: 8 },
-  { shape: [[1,0,0],[1,1,1]], color: 0 },
-  { shape: [[0,0,1],[1,1,1]], color: 0 },
-  { shape: [[1,1,1],[1,0,0]], color: 0 },
-  { shape: [[1,1,1],[0,0,1]], color: 0 },
-  { shape: [[1,1,1],[0,1,0]], color: 1 },
-  { shape: [[0,1,0],[1,1,1]], color: 1 },
-  { shape: [[1,0],[1,1],[1,0]], color: 1 },
-  { shape: [[0,1],[1,1],[0,1]], color: 1 },
-  { shape: [[0,1,1],[1,1,0]], color: 2 },
-  { shape: [[1,1,0],[0,1,1]], color: 2 },
-  { shape: [[1,0],[1,1],[0,1]], color: 2 },
-  { shape: [[0,1],[1,1],[1,0]], color: 2 },
-  { shape: [[1,0],[1,1]], color: 3 },
-  { shape: [[0,1],[1,1]], color: 3 },
-  { shape: [[1,1],[1,0]], color: 3 },
-  { shape: [[1,1],[0,1]], color: 3 },
+  // ── 1×1 single (weight 14 — very common, always fits) ────────────
+  { shape: [[1]],         color: 0, weight: 14 },
+  // ── 1×2 dominoes (weight 13) ─────────────────────────────────────
+  { shape: [[1,1]],       color: 1, weight: 13 },
+  { shape: [[1],[1]],     color: 1, weight: 13 },
+  // ── 1×3 trominoes (weight 12) ────────────────────────────────────
+  { shape: [[1,1,1]],     color: 2, weight: 12 },
+  { shape: [[1],[1],[1]], color: 2, weight: 12 },
+  // ── Small L / corner 2×2 (weight 12) ─────────────────────────────
+  { shape: [[1,0],[1,1]], color: 3, weight: 12 },
+  { shape: [[0,1],[1,1]], color: 3, weight: 12 },
+  { shape: [[1,1],[1,0]], color: 3, weight: 12 },
+  { shape: [[1,1],[0,1]], color: 3, weight: 12 },
+  // ── 2×2 square (weight 11) ────────────────────────────────────────
+  { shape: [[1,1],[1,1]], color: 5, weight: 11 },
+  // ── Straight 4 (weight 8) ─────────────────────────────────────────
+  { shape: [[1,1,1,1]],           color: 3, weight: 8 },
+  { shape: [[1],[1],[1],[1]],     color: 3, weight: 8 },
+  // ── Big L shapes (weight 5) ───────────────────────────────────────
+  { shape: [[1,0],[1,0],[1,1]], color: 8, weight: 5 },
+  { shape: [[0,1],[0,1],[1,1]], color: 8, weight: 5 },
+  { shape: [[1,1],[1,0],[1,0]], color: 8, weight: 5 },
+  { shape: [[1,1],[0,1],[0,1]], color: 8, weight: 5 },
+  { shape: [[1,0,0],[1,1,1]],   color: 0, weight: 5 },
+  { shape: [[0,0,1],[1,1,1]],   color: 0, weight: 5 },
+  { shape: [[1,1,1],[1,0,0]],   color: 0, weight: 5 },
+  { shape: [[1,1,1],[0,0,1]],   color: 0, weight: 5 },
+  // ── T shapes (weight 4) ───────────────────────────────────────────
+  { shape: [[1,1,1],[0,1,0]], color: 1, weight: 4 },
+  { shape: [[0,1,0],[1,1,1]], color: 1, weight: 4 },
+  { shape: [[1,0],[1,1],[1,0]], color: 1, weight: 4 },
+  { shape: [[0,1],[1,1],[0,1]], color: 1, weight: 4 },
+  // ── S/Z shapes (weight 3) ─────────────────────────────────────────
+  { shape: [[0,1,1],[1,1,0]], color: 2, weight: 3 },
+  { shape: [[1,1,0],[0,1,1]], color: 2, weight: 3 },
+  { shape: [[1,0],[1,1],[0,1]], color: 2, weight: 3 },
+  { shape: [[0,1],[1,1],[1,0]], color: 2, weight: 3 },
+  // ── Straight 5 (weight 3) — less common now ───────────────────────
+  { shape: [[1,1,1,1,1]],         color: 4, weight: 3 },
+  { shape: [[1],[1],[1],[1],[1]], color: 4, weight: 3 },
+  // ── 2×3 / 3×2 blocks (weight 1 — rare) ───────────────────────────
+  { shape: [[1,1,1],[1,1,1]],   color: 6, weight: 1 },
+  { shape: [[1,1],[1,1],[1,1]], color: 6, weight: 1 },
+  // ── 3×3 solid (weight 0 — removed, too punishing) ─────────────────
 ];
 
+// Build a flat weighted pool once
+const PIECE_POOL = [];
+PIECE_DEFS.forEach(d => { for (let i = 0; i < d.weight; i++) PIECE_POOL.push(d); });
+
 function randPiece() {
-  const def = PIECE_DEFS[Math.floor(Math.random() * PIECE_DEFS.length)];
+  const def = PIECE_POOL[Math.floor(Math.random() * PIECE_POOL.length)];
   return { shape: def.shape, color: def.color };
+}
+
+function pieceCanFitAnywhere(piece) {
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (canPlace(piece, r, c)) return true;
+  return false;
+}
+
+// Generate 3 pieces, guaranteeing ALL 3 fit somewhere on the current board
+function generatePieces() {
+  const ps = [];
+  for (let slot = 0; slot < 3; slot++) {
+    let attempts = 0, piece;
+    do {
+      piece = randPiece();
+      attempts++;
+    } while (!pieceCanFitAnywhere(piece) && attempts < 60);
+    // Final safety: 1×1 always fits
+    if (!pieceCanFitAnywhere(piece)) piece = { shape: [[1]], color: Math.floor(Math.random() * 9) };
+    ps.push(piece);
+  }
+  return ps;
 }
 
 function initBoard() {
   board = Array.from({ length: ROWS }, () => Array(COLS).fill(-1));
+
+  const colors = [0,1,2,3,4,5,6,7,8];
+  function rc() { return colors[Math.floor(Math.random() * colors.length)]; }
+
+  // ── Seed strategy: fill the outer ring lightly, leave the centre wide open.
+  // This gives the player an obvious open play area right away while the
+  // nearly-complete border rows/cols reward early clears.
+
+  // 1) Nearly-complete top & bottom rows — leave exactly 3 gaps each
+  [0, 9].forEach(row => {
+    const gaps = new Set();
+    while (gaps.size < 3) gaps.add(Math.floor(Math.random() * COLS));
+    for (let c = 0; c < COLS; c++) if (!gaps.has(c)) board[row][c] = rc();
+  });
+
+  // 2) Nearly-complete left & right columns — leave 3 gaps, skip corners already filled
+  [0, 9].forEach(col => {
+    const gaps = new Set();
+    while (gaps.size < 3) gaps.add(Math.floor(Math.random() * ROWS));
+    for (let r = 0; r < ROWS; r++) if (!gaps.has(r) && board[r][col] === -1) board[r][col] = rc();
+  });
+
+  // 3) One partially-filled interior row and column to hint at combos —
+  //    fill only half the cells, leaving lots of room
+  const midRow = 4 + Math.floor(Math.random() * 2); // row 4 or 5
+  const midCol = 4 + Math.floor(Math.random() * 2); // col 4 or 5
+  for (let c = 0; c < COLS; c++) {
+    if (Math.random() < 0.45 && board[midRow][c] === -1) board[midRow][c] = rc();
+  }
+  for (let r = 0; r < ROWS; r++) {
+    if (Math.random() < 0.45 && board[r][midCol] === -1) board[r][midCol] = rc();
+  }
+
+  // 4) Total fill cap: keep it at ≤ 22% so the board feels open and inviting
+  let filled = board.flat().filter(v => v !== -1).length;
+  const cap = Math.floor(ROWS * COLS * 0.22);
+  if (filled > cap) {
+    // Remove random filled cells until we're under the cap
+    const filledCells = [];
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++)
+        if (board[r][c] !== -1) filledCells.push([r, c]);
+    filledCells.sort(() => Math.random() - 0.5);
+    for (const [r, c] of filledCells) {
+      if (filled <= cap) break;
+      board[r][c] = -1; filled--;
+    }
+  }
 }
 
 function initGame() {
   score = 0; comboCount = 0;
   best = parseInt(localStorage.getItem('seb_blast_best') || '0');
   initBoard();
-  pieces = [randPiece(), randPiece(), randPiece()];
+  pieces = generatePieces();
   renderBoard(); renderTray(); updateScore();
   document.getElementById('gameover').classList.remove('show');
 }
@@ -543,7 +630,7 @@ function onDragEnd(e) {
     pieces[dragPieceIdx] = null;
     checkAndClearLines();
     if (pieces.every(p => p === null)) {
-      pieces = [randPiece(), randPiece(), randPiece()];
+      pieces = generatePieces();
       comboCount = 0;
     }
     renderTray();
@@ -729,17 +816,7 @@ function showScorePop(pts) {
 }
 
 function hasAnyValidMove() {
-  for (let i = 0; i < pieces.length; i++) {
-    if (pieces[i] === null) continue;
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        const ar = r - Math.floor(pieces[i].shape.length / 2);
-        const ac = c - Math.floor(pieces[i].shape[0].length / 2);
-        if (canPlace(pieces[i], ar, ac)) return true;
-      }
-    }
-  }
-  return false;
+  return pieces.some(p => p !== null && pieceCanFitAnywhere(p));
 }
 
 function triggerGameOver() {
@@ -763,12 +840,9 @@ window.addEventListener('resize', () => { setResponsiveCellSize(); renderBoard()
 setResponsiveCellSize();
 initGame();
 </script>
-
 <script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
-  });
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register("./sw.js").catch(()=>{}); });
 }
 </script>
 </body>
