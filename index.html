@@ -172,11 +172,9 @@
     z-index: 999;
     display: none;
     opacity: 0.9;
-    transform: scale(1.15) translateY(-30px);
-    transition: filter 0.1s;
   }
   #ghost .piece-grid { gap: 2px; }
-  #ghost .piece-cell { width: 34px; height: 34px; border-radius: 6px; overflow: hidden; transition: background 0.1s; }
+  #ghost .piece-cell { width: var(--cell); height: var(--cell); border-radius: 6px; overflow: hidden; transition: background 0.1s; }
   #ghost.valid .piece-cell.filled   { background: #27ae60 !important; box-shadow: 0 0 8px rgba(39,174,96,0.6); }
   #ghost.valid .piece-cell.filled::after { background: rgba(255,255,255,0.3); }
   #ghost.invalid .piece-cell.filled { background: #e74c3c !important; box-shadow: 0 0 8px rgba(231,76,60,0.6); }
@@ -585,8 +583,10 @@ function startDrag(e, idx) {
   const ghostGrid = document.getElementById('ghost-grid');
   ghostGrid.innerHTML = '';
   const cols = dragging.shape[0].length;
-  ghostGrid.style.gridTemplateColumns = `repeat(${cols}, 34px)`;
-  ghostGrid.style.gridTemplateRows = `repeat(${dragging.shape.length}, 34px)`;
+  // Match ghost cell size exactly to the live board cell size
+  const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 38;
+  ghostGrid.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+  ghostGrid.style.gridTemplateRows = `repeat(${dragging.shape.length}, ${cellSize}px)`;
   ghostGrid.style.gap = '2px';
   for (let r = 0; r < dragging.shape.length; r++) {
     for (let c = 0; c < cols; c++) {
@@ -605,13 +605,23 @@ function startDrag(e, idx) {
   document.addEventListener('mouseup', onDragEnd);
 }
 
-function positionGhost(x, y) {
-  const ghost = document.getElementById('ghost');
+// Single source of truth: where the ghost's top-left pixel should be.
+// Uses the live board --cell size so ghost always matches the grid exactly.
+// When over the board, highlightCells overrides this with a snapped position.
+function ghostTopLeft(x, y) {
+  const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 38;
+  const step = cellSize + 2;
   const cols = dragging.shape[0].length, rows = dragging.shape.length;
-  // Ghost cell size is 34px + 2px gap = 36px per cell
-  const ghostCell = 36;
-  ghost.style.left = (x - (cols * ghostCell) / 2) + 'px';
-  ghost.style.top  = (y - (rows * ghostCell) / 2 - 50) + 'px';
+  const W = cols * cellSize + (cols - 1) * 2;
+  const H = rows * cellSize + (rows - 1) * 2;
+  return { left: x - W / 2, top: y - H / 2 - 60 };
+}
+
+function positionGhost(x, y) {
+  const { left, top } = ghostTopLeft(x, y);
+  const ghost = document.getElementById('ghost');
+  ghost.style.left = left + 'px';
+  ghost.style.top  = top  + 'px';
 }
 
 function onDragMove(e) {
@@ -661,37 +671,38 @@ function getBoardCellAt(x, y) {
 }
 
 function getCenterAnchor(x, y) {
-  const ghost = document.getElementById('ghost');
-  const cols = dragging.shape[0].length, rows = dragging.shape.length;
-  const ghostCell = 36;
-  const ghostLeft = x - (cols * ghostCell) / 2;
-  const ghostTop  = y - (rows * ghostCell) / 2 - 50;
+  // Use the exact same ghost pixel position that positionGhost uses,
+  // then map that onto the board grid. This guarantees the highlight
+  // always lines up with what the player sees.
+  const { left: ghostLeft, top: ghostTop } = ghostTopLeft(x, y);
 
   const grid = document.getElementById('grid');
   const rect = grid.getBoundingClientRect();
   const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 38;
-  const step = cellSize + 2;
-  const pad = 6;
+  const step = cellSize + 2; // cell + gap
+  const pad  = 6;            // grid padding
 
+  // Map ghost top-left pixel → board anchor cell (top-left cell of piece)
   const anchorC = Math.round((ghostLeft - rect.left - pad) / step);
   const anchorR = Math.round((ghostTop  - rect.top  - pad) / step);
 
-  // If exact position is invalid, search nearby cells within tolerance radius
-  if (!canPlace(dragging, anchorR, anchorC)) {
-    const tolerance = 2; // cells to search in each direction
-    let bestR = anchorR, bestC = anchorC, bestDist = Infinity;
-    for (let dr = -tolerance; dr <= tolerance; dr++) {
-      for (let dc = -tolerance; dc <= tolerance; dc++) {
-        const tr = anchorR + dr, tc = anchorC + dc;
-        if (canPlace(dragging, tr, tc)) {
-          const dist = dr * dr + dc * dc;
-          if (dist < bestDist) { bestDist = dist; bestR = tr; bestC = tc; }
-        }
+  // If exact anchor is valid, use it directly
+  if (canPlace(dragging, anchorR, anchorC)) {
+    return { r: anchorR, c: anchorC, valid: true };
+  }
+
+  // Otherwise snap to nearest valid position within 2-cell radius
+  let bestR = anchorR, bestC = anchorC, bestDist = Infinity;
+  for (let dr = -2; dr <= 2; dr++) {
+    for (let dc = -2; dc <= 2; dc++) {
+      const tr = anchorR + dr, tc = anchorC + dc;
+      if (canPlace(dragging, tr, tc)) {
+        const dist = dr * dr + dc * dc;
+        if (dist < bestDist) { bestDist = dist; bestR = tr; bestC = tc; }
       }
     }
-    return { r: bestR, c: bestC, valid: bestDist < Infinity };
   }
-  return { r: anchorR, c: anchorC, valid: true };
+  return { r: bestR, c: bestC, valid: bestDist < Infinity };
 }
 
 function highlightCells(x, y) {
@@ -699,19 +710,27 @@ function highlightCells(x, y) {
   if (!dragging) return;
   const anchor = getCenterAnchor(x, y);
   if (!anchor) return;
+
   const ghost = document.getElementById('ghost');
   ghost.classList.remove('valid', 'invalid');
-  if (anchor.valid) {
-    ghost.classList.add('valid');
-  } else {
-    ghost.classList.add('invalid');
-  }
+  ghost.classList.add(anchor.valid ? 'valid' : 'invalid');
+
+  // Snap the ghost visually onto the exact grid cells it will land on —
+  // this makes ghost + highlight + drop all perfectly coincident.
+  const grid = document.getElementById('grid');
+  const rect = grid.getBoundingClientRect();
+  const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 38;
+  const step = cellSize + 2; // cell + 2px gap
+  const pad  = 6;            // grid padding
+  ghost.style.left = (rect.left + pad + anchor.c * step) + 'px';
+  ghost.style.top  = (rect.top  + pad + anchor.r * step) + 'px';
+
   for (let r = 0; r < dragging.shape.length; r++) {
     for (let c = 0; c < dragging.shape[0].length; c++) {
       if (!dragging.shape[r][c]) continue;
       const gr = anchor.r + r, gc = anchor.c + c;
       if (gr < 0 || gr >= ROWS || gc < 0 || gc >= COLS) continue;
-      const cell = document.getElementById('grid').children[gr * COLS + gc];
+      const cell = grid.children[gr * COLS + gc];
       if (cell) cell.classList.add(anchor.valid ? 'highlight' : 'invalid');
     }
   }
