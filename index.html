@@ -151,6 +151,34 @@
     0% { opacity: 1; transform: translateY(0) scale(1); }
     100% { opacity: 0; transform: translateY(-60px) scale(1.2); }
   }
+  .sebtacular-pop {
+    position: fixed;
+    pointer-events: none;
+    left: 50%;
+    top: 38%;
+    transform: translateX(-50%) scale(0);
+    z-index: 300;
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    background: linear-gradient(135deg, #f0a500, #e94560, #9b59b6, #f0a500);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 12px rgba(240,165,0,0.8));
+    animation: sebtacularPop 1.6s cubic-bezier(0.22,1,0.36,1) forwards;
+  }
+  @keyframes sebtacularPop {
+    0%   { transform: translateX(-50%) scale(0) rotate(-8deg); opacity: 0; }
+    18%  { transform: translateX(-50%) scale(1.25) rotate(3deg); opacity: 1; }
+    30%  { transform: translateX(-50%) scale(0.95) rotate(-1deg); opacity: 1; }
+    42%  { transform: translateX(-50%) scale(1.08) rotate(1deg); opacity: 1; }
+    60%  { transform: translateX(-50%) scale(1) rotate(0deg); opacity: 1; }
+    80%  { transform: translateX(-50%) scale(1) rotate(0deg); opacity: 1; }
+    100% { transform: translateX(-50%) scale(0.8) rotate(0deg) translateY(-30px); opacity: 0; }
+  }
 
   /* Piece tray */
   #tray {
@@ -860,14 +888,27 @@ function addScore(cells, isLine, lineCount) {
   if (isLine) { showCombo(lineCount); showScorePop(pts); }
 }
 
+function showSebtacular() {
+  // Remove any existing one first so re-triggering works
+  document.querySelectorAll('.sebtacular-pop').forEach(el => el.remove());
+  const pop = document.createElement('div');
+  pop.className = 'sebtacular-pop';
+  pop.textContent = '✨ Sebtacular! ✨';
+  document.body.appendChild(pop);
+  pop.addEventListener('animationend', () => pop.remove());
+}
+
 function showCombo(lines) {
   const el = document.getElementById('combo');
   let msg = '';
-  if (lines >= 2) msg += `${lines} LINES!`;
+  if (lines >= 2) {
+    showSebtacular();
+    msg = 'Sebtacular! 🚀';
+  }
   if (comboCount >= 2) msg += (msg ? ' ' : '') + `×${comboCount} COMBO!`;
   if (msg) {
     el.textContent = msg;
-    setTimeout(() => { el.textContent = ''; }, 1600);
+    setTimeout(() => { el.textContent = ''; }, 2000);
   } else {
     el.textContent = '';
   }
