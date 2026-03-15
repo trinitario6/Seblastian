@@ -197,9 +197,9 @@
     justify-content: space-around;
     align-items: center;
     padding: 6px 4px;
-    background: var(--bg2);
+    background: #2a2a4a;
     border-radius: 12px;
-    border: 1px solid #2a2a4a;
+    border: 1px solid #3a3a6a;
     min-height: 90px;
     flex: 0 0 auto;
   }
@@ -218,9 +218,13 @@
   .piece-cell {
     width: 20px; height: 20px;
     border-radius: 4px;
-    border: 1px solid rgba(255,255,255,0.1);
+    border: none;
+    background: transparent;
     position: relative;
     overflow: hidden;
+  }
+  .piece-cell.filled {
+    border: 1px solid rgba(255,255,255,0.1);
   }
   .piece-cell.filled::after {
     content: '';
@@ -240,7 +244,8 @@
     opacity: 0.9;
   }
   #ghost .piece-grid { gap: 2px; }
-  #ghost .piece-cell { width: var(--cell); height: var(--cell); border-radius: 6px; overflow: hidden; transition: background 0.1s; }
+  #ghost .piece-cell { width: var(--cell); height: var(--cell); border-radius: 6px; overflow: hidden; transition: background 0.1s; background: transparent; border: none; }
+  #ghost .piece-cell.filled { border: 1px solid rgba(255,255,255,0.1); }
   #ghost.valid .piece-cell.filled   { background: #27ae60 !important; box-shadow: 0 0 8px rgba(39,174,96,0.6); }
   #ghost.valid .piece-cell.filled::after { background: rgba(255,255,255,0.3); }
   #ghost.invalid .piece-cell.filled { background: #e74c3c !important; box-shadow: 0 0 8px rgba(231,76,60,0.6); }
@@ -546,72 +551,78 @@ const COLS = 10, ROWS = 10;
 const LEVEL_THRESHOLD = 5000; // points per level
 let board = [], score = 0, best = 0, level = 1, pieces = [], dragging = null, dragPieceIdx = -1, comboCount = 0;
 
-// Each entry: { shape, color, weight }  — higher weight = appears more often
+// Each entry: { shape, color, easyWeight, hardWeight }
+// easyWeight = weight at level 1, hardWeight = weight at level 10+
+// Values interpolate linearly between the two based on current level.
 const PIECE_DEFS = [
-  // ── 1×1 single (weight 14 — very common, always fits) ────────────
-  { shape: [[1]],         color: 0, weight: 14 },
-  // ── 1×2 dominoes (weight 13) ─────────────────────────────────────
-  { shape: [[1,1]],       color: 1, weight: 13 },
-  { shape: [[1],[1]],     color: 1, weight: 13 },
-  // ── 1×3 trominoes (weight 12) ────────────────────────────────────
-  { shape: [[1,1,1]],     color: 2, weight: 12 },
-  { shape: [[1],[1],[1]], color: 2, weight: 12 },
-  // ── Small L / corner 2×2 (weight 12) ─────────────────────────────
-  { shape: [[1,0],[1,1]], color: 3, weight: 12 },
-  { shape: [[0,1],[1,1]], color: 3, weight: 12 },
-  { shape: [[1,1],[1,0]], color: 3, weight: 12 },
-  { shape: [[1,1],[0,1]], color: 3, weight: 12 },
-  // ── 2×2 square (weight 11) ────────────────────────────────────────
-  { shape: [[1,1],[1,1]], color: 5, weight: 11 },
-  // ── Straight 4 (weight 8) ─────────────────────────────────────────
-  { shape: [[1,1,1,1]],           color: 3, weight: 8 },
-  { shape: [[1],[1],[1],[1]],     color: 3, weight: 8 },
-  // ── Big L shapes (weight 5) ───────────────────────────────────────
-  { shape: [[1,0],[1,0],[1,1]], color: 8, weight: 5 },
-  { shape: [[0,1],[0,1],[1,1]], color: 8, weight: 5 },
-  { shape: [[1,1],[1,0],[1,0]], color: 8, weight: 5 },
-  { shape: [[1,1],[0,1],[0,1]], color: 8, weight: 5 },
-  { shape: [[1,0,0],[1,1,1]],   color: 0, weight: 5 },
-  { shape: [[0,0,1],[1,1,1]],   color: 0, weight: 5 },
-  { shape: [[1,1,1],[1,0,0]],   color: 0, weight: 5 },
-  { shape: [[1,1,1],[0,0,1]],   color: 0, weight: 5 },
-  // ── T shapes (weight 4) ───────────────────────────────────────────
-  { shape: [[1,1,1],[0,1,0]], color: 1, weight: 4 },
-  { shape: [[0,1,0],[1,1,1]], color: 1, weight: 4 },
-  { shape: [[1,0],[1,1],[1,0]], color: 1, weight: 4 },
-  { shape: [[0,1],[1,1],[0,1]], color: 1, weight: 4 },
-  // ── S/Z shapes (weight 3) ─────────────────────────────────────────
-  { shape: [[0,1,1],[1,1,0]], color: 2, weight: 3 },
-  { shape: [[1,1,0],[0,1,1]], color: 2, weight: 3 },
-  { shape: [[1,0],[1,1],[0,1]], color: 2, weight: 3 },
-  { shape: [[0,1],[1,1],[1,0]], color: 2, weight: 3 },
-  // ── Straight 5 (weight 3) — less common now ───────────────────────
-  { shape: [[1,1,1,1,1]],         color: 4, weight: 3 },
-  { shape: [[1],[1],[1],[1],[1]], color: 4, weight: 3 },
-  // ── 2×3 / 3×2 blocks (weight 1 — rare) ───────────────────────────
-  { shape: [[1,1,1],[1,1,1]],   color: 6, weight: 1 },
-  { shape: [[1,1],[1,1],[1,1]], color: 6, weight: 1 },
-  // ── Diagonal 2 (weight 7) ─────────────────────────────────────────
-  { shape: [[1,0],[0,1]], color: 4, weight: 7 },
-  { shape: [[0,1],[1,0]], color: 4, weight: 7 },
-  // ── Diagonal 3 (weight 5) ─────────────────────────────────────────
-  { shape: [[1,0,0],[0,1,0],[0,0,1]], color: 7, weight: 5 },
-  { shape: [[0,0,1],[0,1,0],[1,0,0]], color: 7, weight: 5 },
-  // ── 3×3 solid (weight 0 — removed, too punishing) ─────────────────
+  // ── 1×1 single ───────────────────────────────────────────────────
+  { shape: [[1]],         color: 0, easyWeight: 10, hardWeight: 6 },
+  // ── 1×2 dominoes ─────────────────────────────────────────────────
+  { shape: [[1,1]],       color: 1, easyWeight: 18, hardWeight: 10 },
+  { shape: [[1],[1]],     color: 1, easyWeight: 18, hardWeight: 10 },
+  // ── 1×3 trominoes ────────────────────────────────────────────────
+  { shape: [[1,1,1]],     color: 2, easyWeight: 18, hardWeight: 10 },
+  { shape: [[1],[1],[1]], color: 2, easyWeight: 18, hardWeight: 10 },
+  // ── 1×4 straight ─────────────────────────────────────────────────
+  { shape: [[1,1,1,1]],           color: 3, easyWeight: 16, hardWeight: 7 },
+  { shape: [[1],[1],[1],[1]],     color: 3, easyWeight: 16, hardWeight: 7 },
+  // ── 1×5 straight ─────────────────────────────────────────────────
+  { shape: [[1,1,1,1,1]],         color: 4, easyWeight: 12, hardWeight: 3 },
+  { shape: [[1],[1],[1],[1],[1]], color: 4, easyWeight: 12, hardWeight: 3 },
+  // ── 2×2 square ────────────────────────────────────────────────────
+  { shape: [[1,1],[1,1]], color: 5, easyWeight: 14, hardWeight: 9 },
+  // ── Small L / corner ─────────────────────────────────────────────
+  { shape: [[1,0],[1,1]], color: 3, easyWeight: 10, hardWeight: 10 },
+  { shape: [[0,1],[1,1]], color: 3, easyWeight: 10, hardWeight: 10 },
+  { shape: [[1,1],[1,0]], color: 3, easyWeight: 10, hardWeight: 10 },
+  { shape: [[1,1],[0,1]], color: 3, easyWeight: 10, hardWeight: 10 },
+  // ── Big L shapes ─────────────────────────────────────────────────
+  { shape: [[1,0],[1,0],[1,1]], color: 8, easyWeight: 4,  hardWeight: 7 },
+  { shape: [[0,1],[0,1],[1,1]], color: 8, easyWeight: 4,  hardWeight: 7 },
+  { shape: [[1,1],[1,0],[1,0]], color: 8, easyWeight: 4,  hardWeight: 7 },
+  { shape: [[1,1],[0,1],[0,1]], color: 8, easyWeight: 4,  hardWeight: 7 },
+  { shape: [[1,0,0],[1,1,1]],   color: 0, easyWeight: 4,  hardWeight: 7 },
+  { shape: [[0,0,1],[1,1,1]],   color: 0, easyWeight: 4,  hardWeight: 7 },
+  { shape: [[1,1,1],[1,0,0]],   color: 0, easyWeight: 4,  hardWeight: 7 },
+  { shape: [[1,1,1],[0,0,1]],   color: 0, easyWeight: 4,  hardWeight: 7 },
+  // ── T shapes ─────────────────────────────────────────────────────
+  { shape: [[1,1,1],[0,1,0]], color: 1, easyWeight: 3, hardWeight: 6 },
+  { shape: [[0,1,0],[1,1,1]], color: 1, easyWeight: 3, hardWeight: 6 },
+  { shape: [[1,0],[1,1],[1,0]], color: 1, easyWeight: 3, hardWeight: 6 },
+  { shape: [[0,1],[1,1],[0,1]], color: 1, easyWeight: 3, hardWeight: 6 },
+  // ── S/Z shapes ───────────────────────────────────────────────────
+  { shape: [[0,1,1],[1,1,0]], color: 2, easyWeight: 1, hardWeight: 5 },
+  { shape: [[1,1,0],[0,1,1]], color: 2, easyWeight: 1, hardWeight: 5 },
+  { shape: [[1,0],[1,1],[0,1]], color: 2, easyWeight: 1, hardWeight: 5 },
+  { shape: [[0,1],[1,1],[1,0]], color: 2, easyWeight: 1, hardWeight: 5 },
+  // ── Diagonal 2 ───────────────────────────────────────────────────
+  { shape: [[1,0],[0,1]], color: 4, easyWeight: 2, hardWeight: 7 },
+  { shape: [[0,1],[1,0]], color: 4, easyWeight: 2, hardWeight: 7 },
+  // ── Diagonal 3 ───────────────────────────────────────────────────
+  { shape: [[1,0,0],[0,1,0],[0,0,1]], color: 7, easyWeight: 1, hardWeight: 5 },
+  { shape: [[0,0,1],[0,1,0],[1,0,0]], color: 7, easyWeight: 1, hardWeight: 5 },
+  // ── 2×3 / 3×2 blocks ─────────────────────────────────────────────
+  { shape: [[1,1,1],[1,1,1]],   color: 6, easyWeight: 1, hardWeight: 3 },
+  { shape: [[1,1],[1,1],[1,1]], color: 6, easyWeight: 1, hardWeight: 3 },
 ];
 
-// Build a flat weighted pool once
-const PIECE_POOL = [];
-PIECE_DEFS.forEach(d => { for (let i = 0; i < d.weight; i++) PIECE_POOL.push(d); });
-
-// Kid mode uses the same piece set as adult — difficulty comes from board seeding, not piece restriction
-const KID_PIECE_POOL = PIECE_POOL; // shared pool, seeding does the heavy lifting
+// Build a level-appropriate weighted pool. Level 1 = pure easyWeight,
+// level 10+ = pure hardWeight, smoothly interpolated between.
+function buildPiecePool(lv) {
+  const t = Math.min((lv - 1) / 9, 1); // 0 at level 1, 1 at level 10+
+  const pool = [];
+  PIECE_DEFS.forEach(d => {
+    const w = Math.round(d.easyWeight + (d.hardWeight - d.easyWeight) * t);
+    for (let i = 0; i < w; i++) pool.push(d);
+  });
+  return pool;
+}
 
 let gameMode = 'adult'; // 'kid' or 'adult'
+let _piecePool = buildPiecePool(1); // rebuilt on every level-up
 
 function randPiece() {
-  const pool = gameMode === 'kid' ? KID_PIECE_POOL : PIECE_POOL;
-  const def = pool[Math.floor(Math.random() * pool.length)];
+  const def = _piecePool[Math.floor(Math.random() * _piecePool.length)];
   return { shape: def.shape, color: def.color };
 }
 
@@ -622,18 +633,64 @@ function pieceCanFitAnywhere(piece) {
   return false;
 }
 
-// Generate 3 pieces, guaranteeing ALL 3 fit somewhere on the current board
+// Count how many gaps remain in each row and column
+function gapCounts() {
+  const rows = Array(ROWS).fill(0), cols = Array(COLS).fill(0);
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (board[r][c] === -1) { rows[r]++; cols[c]++; }
+  return { rows, cols };
+}
+
+// Score a piece by how well it fits into nearly-complete rows/cols.
+// Higher = more combo potential.
+function comboPotential(piece) {
+  const { rows, cols } = gapCounts();
+  let score = 0;
+  const ph = piece.shape.length, pw = piece.shape[0].length;
+  // Try every anchor position
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (!canPlace(piece, r, c)) continue;
+      // Count which rows/cols this placement would contribute to
+      const hitRows = new Set(), hitCols = new Set();
+      for (let pr = 0; pr < ph; pr++)
+        for (let pc = 0; pc < pw; pc++)
+          if (piece.shape[pr][pc]) { hitRows.add(r+pr); hitCols.add(c+pc); }
+      // Reward placements that come close to completing a line
+      hitRows.forEach(row => { if (rows[row] <= pw) score += (pw - rows[row] + 1) * 3; });
+      hitCols.forEach(col => { if (cols[col] <= ph) score += (ph - cols[col] + 1) * 3; });
+    }
+  }
+  return score;
+}
+
+// Generate 3 pieces — at low levels, actively pick pieces with high combo potential.
+// At high levels, just pick randomly from the (already harder) pool.
 function generatePieces() {
   const ps = [];
+  // comboSelectionStrength: 1 = always pick best combo piece, 0 = pure random
+  const comboStrength = Math.max(0, 1 - (level - 1) / 5); // full at lvl1, zero at lvl6+
+
   for (let slot = 0; slot < 3; slot++) {
-    let attempts = 0, piece;
-    do {
-      piece = randPiece();
-      attempts++;
-    } while (!pieceCanFitAnywhere(piece) && attempts < 60);
-    // Final safety: 1×1 always fits
-    if (!pieceCanFitAnywhere(piece)) piece = { shape: [[1]], color: Math.floor(Math.random() * 9) };
-    ps.push(piece);
+    let chosen;
+    if (comboStrength > 0 && Math.random() < comboStrength) {
+      // Pick best of 6 random candidates by combo potential
+      const candidates = Array.from({ length: 6 }, () => randPiece())
+        .filter(p => pieceCanFitAnywhere(p));
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => comboPotential(b) - comboPotential(a));
+        chosen = candidates[0];
+      }
+    }
+    if (!chosen) {
+      // Fallback: random valid piece
+      let attempts = 0;
+      do { chosen = randPiece(); attempts++; }
+      while (!pieceCanFitAnywhere(chosen) && attempts < 60);
+      if (!pieceCanFitAnywhere(chosen)) chosen = { shape: [[1]], color: Math.floor(Math.random() * 9) };
+    }
+    ps.push(chosen);
   }
   return ps;
 }
@@ -711,6 +768,7 @@ function initBoard(lvl) {
 function initGame(mode) {
   if (mode) gameMode = mode;
   score = 0; comboCount = 0; level = 1;
+  _piecePool = buildPiecePool(1);
   const bestKey = 'seb_blast_best_' + gameMode;
   best = parseInt(localStorage.getItem(bestKey) || '0');
   initBoard(1);
@@ -1042,6 +1100,7 @@ function addScore(cells, isLine, lineCount) {
 
 function triggerLevelUp(newLevel) {
   level = newLevel;
+  _piecePool = buildPiecePool(newLevel); // shift piece weights for new level
   updateScore();
   showPopup('🚀 Level ' + newLevel + '!');
   soundLineClear(4);
