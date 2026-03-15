@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f0f1a">
+<title>Seb Blast!</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: none; user-select: none; }
+  :root {
+    --bg: #0f0f1a;
+    --bg2: #1a1a2e;
+    --bg3: #16213e;
+    --accent: #e94560;
+    --gold: #f0a500;
+    --cell: 38px;
+    --gap: 2px;
+  }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', system-ui, sans-serif; }
+
+  #app { display: flex; flex-direction: column; align-items: center; height: 100dvh; padding: 4px 8px 0; gap: 4px; }
+
+  /* Title */
+  #title {
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, #f0a500, #e94560, #9b59b6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    padding: 2px 0;
+    filter: drop-shadow(0 0 8px rgba(233,69,96,0.4));
+  }
+
+  /* Header */
+  #header { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 2px 8px; }
+  #score-box { text-align: center; }
+  #score-label { font-size: 10px; color: #888; letter-spacing: 2px; text-transform: uppercase; }
+  #score { font-size: 26px; font-weight: 700; color: #fff; line-height: 1; }
+  #best-box { text-align: center; }
+  #best-label { font-size: 10px; color: #888; letter-spacing: 2px; text-transform: uppercase; }
+  #best { font-size: 18px; font-weight: 600; color: var(--gold); line-height: 1; }
+  #combo-box { text-align: center; min-width: 70px; }
+  #combo { font-size: 13px; font-weight: 700; color: var(--accent); min-height: 18px; }
+
+  /* Mute button */
+  #mute-btn {
+    position: absolute;
+    top: 6px; right: 8px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 20px;
+    color: #aaa;
+    font-size: 16px;
+    padding: 4px 10px;
+    cursor: pointer;
+    z-index: 10;
+  }
+
+  /* Grid */
+  #grid-wrap { position: relative; }
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(10, var(--cell));
+    grid-template-rows: repeat(10, var(--cell));
+    gap: var(--gap);
+    background: var(--bg2);
+    border-radius: 12px;
+    padding: 6px;
+    border: 1px solid #2a2a4a;
+  }
+  .cell {
+    width: var(--cell);
+    height: var(--cell);
+    border-radius: 6px;
+    background: var(--bg3);
+    border: 1px solid #1e1e3a;
+    transition: background 0.08s, transform 0.08s;
+    position: relative;
+    overflow: hidden;
+  }
+  .cell.filled { border: 1px solid rgba(255,255,255,0.1); }
+  .cell.filled::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 2px; right: 2px;
+    height: 35%;
+    border-radius: 4px 4px 0 0;
+    background: rgba(255,255,255,0.25);
+  }
+  .cell.highlight { background: rgba(255,255,255,0.15) !important; border: 1px solid rgba(255,255,255,0.3) !important; }
+  .cell.invalid { background: rgba(233,69,96,0.2) !important; border: 1px solid rgba(233,69,96,0.4) !important; }
+  .cell.clearing { animation: clearPop 0.35s ease forwards; }
+  @keyframes clearPop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.15); filter: brightness(2); }
+    100% { transform: scale(0); opacity: 0; }
+  }
+  .cell.flash-row { animation: flashRow 0.15s ease; }
+  @keyframes flashRow {
+    0%,100% { filter: brightness(1); }
+    50% { filter: brightness(2.5); }
+  }
+
+  .score-pop {
+    position: absolute;
+    pointer-events: none;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--gold);
+    text-shadow: 0 0 8px var(--gold);
+    animation: floatUp 0.9s ease forwards;
+    z-index: 100;
+    white-space: nowrap;
+  }
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-60px) scale(1.2); }
+  }
+
+  /* Piece tray */
+  #tray {
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 6px 4px;
+    background: var(--bg2);
+    border-radius: 12px;
+    border: 1px solid #2a2a4a;
+    min-height: 90px;
+    flex: 0 0 auto;
+  }
+  .piece-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30%;
+    min-height: 80px;
+    cursor: pointer;
+    transition: transform 0.15s;
+    position: relative;
+  }
+  .piece-slot.used { opacity: 0.15; pointer-events: none; }
+  .piece-grid { display: grid; gap: 2px; }
+  .piece-cell {
+    width: 20px; height: 20px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.1);
+    position: relative;
+    overflow: hidden;
+  }
+  .piece-cell.filled::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 2px; right: 2px;
+    height: 35%;
+    border-radius: 3px 3px 0 0;
+    background: rgba(255,255,255,0.25);
+  }
+
+  /* Ghost drag */
+  #ghost {
+    position: fixed;
+    pointer-events: none;
+    z-index: 999;
+    display: none;
+    opacity: 0.9;
+    transform: scale(1.15) translateY(-30px);
+    transition: filter 0.1s;
+  }
+  #ghost .piece-grid { gap: 2px; }
+  #ghost .piece-cell { width: 34px; height: 34px; border-radius: 6px; overflow: hidden; transition: background 0.1s; }
+  #ghost.valid .piece-cell.filled   { background: #27ae60 !important; box-shadow: 0 0 8px rgba(39,174,96,0.6); }
+  #ghost.valid .piece-cell.filled::after { background: rgba(255,255,255,0.3); }
+  #ghost.invalid .piece-cell.filled { background: #e74c3c !important; box-shadow: 0 0 8px rgba(231,76,60,0.6); }
+  #ghost.invalid .piece-cell.filled::after { background: rgba(255,255,255,0.2); }
+
+  /* Game over overlay */
+  #gameover {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    z-index: 200;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+  }
+  #gameover.show { display: flex; }
+  #gameover h1 { font-size: 34px; color: var(--accent); font-weight: 900; letter-spacing: 3px; }
+  #gameover .final { font-size: 17px; color: #aaa; }
+  #gameover .final span { color: #fff; font-weight: 700; font-size: 22px; }
+  #restart-btn {
+    padding: 14px 42px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 18px;
+    font-weight: 800;
+    border: none;
+    border-radius: 30px;
+    cursor: pointer;
+    letter-spacing: 2px;
+    box-shadow: 0 4px 24px rgba(233,69,96,0.5);
+  }
+
+  /* Colors */
+  .c0 { background: #e74c3c; }
+  .c1 { background: #e67e22; }
+  .c2 { background: #f1c40f; }
+  .c3 { background: #2ecc71; }
+  .c4 { background: #1abc9c; }
+  .c5 { background: #3498db; }
+  .c6 { background: #9b59b6; }
+  .c7 { background: #e91e63; }
+  .c8 { background: #00bcd4; }
+</style>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+<div id="app">
+  <div id="title">Seb Blast!</div>
+  <div id="header">
+    <div id="score-box">
+      <div id="score-label">Score</div>
+      <div id="score">0</div>
+    </div>
+    <div id="combo-box"><div id="combo"></div></div>
+    <div id="best-box">
+      <div id="best-label">Best</div>
+      <div id="best">0</div>
+    </div>
+  </div>
+  <div id="grid-wrap">
+    <div id="grid"></div>
+  </div>
+  <div id="tray"></div>
+</div>
+
+<button id="mute-btn" title="Toggle sound">🔊</button>
+<div id="ghost"><div class="piece-grid" id="ghost-grid"></div></div>
+
+<div id="gameover">
+  <h1>GAME OVER</h1>
+  <div class="final">Score: <span id="final-score">0</span></div>
+  <div class="final">Best: <span id="final-best">0</span></div>
+  <button id="restart-btn">PLAY AGAIN</button>
+</div>
+
+<script>
+// ─── Audio Engine (Web Audio API) ────────────────────────────────────────────
+let audioCtx = null;
+let muted = false;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playTone(type, freq, duration, volume = 0.3, fadeOut = true) {
+  if (muted) return;
+  try {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    if (fadeOut) gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+  } catch(e) {}
+}
+
+function playChord(freqs, type, duration, volume = 0.18) {
+  freqs.forEach(f => playTone(type, f, duration, volume));
+}
+
+// Block drop: satisfying thud
+function soundDrop() {
+  if (muted) return;
+  try {
+    const ctx = getAudioCtx();
+    // Low thud using noise burst
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.08, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 200;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.4, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    src.start();
+    // Short click on top
+    playTone('sine', 120, 0.06, 0.25);
+  } catch(e) {}
+}
+
+// Single line clear: ascending sweep
+function soundLineClear(lineCount) {
+  if (muted) return;
+  try {
+    const ctx = getAudioCtx();
+    const notes = lineCount >= 4 ? [523, 659, 784, 1047, 1319] :
+                  lineCount >= 3 ? [523, 659, 784, 1047] :
+                  lineCount >= 2 ? [523, 659, 784] : [523, 659];
+    notes.forEach((freq, i) => {
+      setTimeout(() => playTone('square', freq, 0.18, 0.22), i * 55);
+    });
+    // Explosion crackle
+    setTimeout(() => {
+      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.25, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 1.5);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const bpf = ctx.createBiquadFilter();
+      bpf.type = 'bandpass';
+      bpf.frequency.value = 1200;
+      bpf.Q.value = 0.5;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.35, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+      src.connect(bpf);
+      bpf.connect(gain);
+      gain.connect(ctx.destination);
+      src.start();
+    }, notes.length * 55);
+  } catch(e) {}
+}
+
+// Combo: triumphant arpeggio
+function soundCombo(count) {
+  if (muted) return;
+  const scales = [
+    [523, 659, 784],
+    [659, 784, 988, 1047],
+    [784, 988, 1047, 1319, 1568],
+  ];
+  const notes = scales[Math.min(count - 2, scales.length - 1)];
+  notes.forEach((freq, i) => {
+    setTimeout(() => playTone('sawtooth', freq, 0.2, 0.18), i * 70);
+  });
+}
+
+// Game over: descending sad tones
+function soundGameOver() {
+  if (muted) return;
+  [440, 370, 311, 261].forEach((freq, i) => {
+    setTimeout(() => playTone('sawtooth', freq, 0.4, 0.2), i * 160);
+  });
+}
+
+// Drag pickup: light tick
+function soundPickup() {
+  playTone('sine', 880, 0.06, 0.12);
+}
+
+document.getElementById('mute-btn').addEventListener('click', () => {
+  muted = !muted;
+  document.getElementById('mute-btn').textContent = muted ? '🔇' : '🔊';
+});
+
+// ─── Game Logic ───────────────────────────────────────────────────────────────
+const COLS = 10, ROWS = 10;
+let board = [], score = 0, best = 0, pieces = [], dragging = null, dragPieceIdx = -1, comboCount = 0;
+
+const PIECE_DEFS = [
+  { shape: [[1]], color: 0 },
+  { shape: [[1,1]], color: 1 },
+  { shape: [[1],[1]], color: 1 },
+  { shape: [[1,1,1]], color: 2 },
+  { shape: [[1],[1],[1]], color: 2 },
+  { shape: [[1,1,1,1]], color: 3 },
+  { shape: [[1],[1],[1],[1]], color: 3 },
+  { shape: [[1,1,1,1,1]], color: 4 },
+  { shape: [[1],[1],[1],[1],[1]], color: 4 },
+  { shape: [[1,1],[1,1]], color: 5 },
+  { shape: [[1,1,1],[1,1,1]], color: 6 },
+  { shape: [[1,1],[1,1],[1,1]], color: 6 },
+  { shape: [[1,1,1],[1,1,1],[1,1,1]], color: 7 },
+  { shape: [[1,0],[1,0],[1,1]], color: 8 },
+  { shape: [[0,1],[0,1],[1,1]], color: 8 },
+  { shape: [[1,1],[1,0],[1,0]], color: 8 },
+  { shape: [[1,1],[0,1],[0,1]], color: 8 },
+  { shape: [[1,0,0],[1,1,1]], color: 0 },
+  { shape: [[0,0,1],[1,1,1]], color: 0 },
+  { shape: [[1,1,1],[1,0,0]], color: 0 },
+  { shape: [[1,1,1],[0,0,1]], color: 0 },
+  { shape: [[1,1,1],[0,1,0]], color: 1 },
+  { shape: [[0,1,0],[1,1,1]], color: 1 },
+  { shape: [[1,0],[1,1],[1,0]], color: 1 },
+  { shape: [[0,1],[1,1],[0,1]], color: 1 },
+  { shape: [[0,1,1],[1,1,0]], color: 2 },
+  { shape: [[1,1,0],[0,1,1]], color: 2 },
+  { shape: [[1,0],[1,1],[0,1]], color: 2 },
+  { shape: [[0,1],[1,1],[1,0]], color: 2 },
+  { shape: [[1,0],[1,1]], color: 3 },
+  { shape: [[0,1],[1,1]], color: 3 },
+  { shape: [[1,1],[1,0]], color: 3 },
+  { shape: [[1,1],[0,1]], color: 3 },
+];
+
+function randPiece() {
+  const def = PIECE_DEFS[Math.floor(Math.random() * PIECE_DEFS.length)];
+  return { shape: def.shape, color: def.color };
+}
+
+function initBoard() {
+  board = Array.from({ length: ROWS }, () => Array(COLS).fill(-1));
+}
+
+function initGame() {
+  score = 0; comboCount = 0;
+  best = parseInt(localStorage.getItem('seb_blast_best') || '0');
+  initBoard();
+  pieces = [randPiece(), randPiece(), randPiece()];
+  renderBoard(); renderTray(); updateScore();
+  document.getElementById('gameover').classList.remove('show');
+}
+
+function renderBoard() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.r = r; cell.dataset.c = c;
+      if (board[r][c] !== -1) cell.classList.add('filled', 'c' + board[r][c]);
+      grid.appendChild(cell);
+    }
+  }
+}
+
+function renderTray() {
+  const tray = document.getElementById('tray');
+  tray.innerHTML = '';
+  pieces.forEach((p, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'piece-slot' + (p === null ? ' used' : '');
+    if (p) {
+      slot.appendChild(buildPieceGrid(p, 20, 2));
+      slot.addEventListener('touchstart', e => startDrag(e, i), { passive: false });
+      slot.addEventListener('mousedown', e => startDrag(e, i));
+    }
+    tray.appendChild(slot);
+  });
+}
+
+function buildPieceGrid(piece, cellSize, gap) {
+  const pg = document.createElement('div');
+  pg.className = 'piece-grid';
+  const rows = piece.shape.length, cols = piece.shape[0].length;
+  pg.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+  pg.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
+  pg.style.gap = gap + 'px';
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'piece-cell';
+      if (piece.shape[r][c]) cell.classList.add('filled', 'c' + piece.color);
+      pg.appendChild(cell);
+    }
+  }
+  return pg;
+}
+
+function updateScore() {
+  document.getElementById('score').textContent = score;
+  document.getElementById('best').textContent = best;
+}
+
+function startDrag(e, idx) {
+  e.preventDefault();
+  if (pieces[idx] === null) return;
+  soundPickup();
+  dragPieceIdx = idx;
+  dragging = pieces[idx];
+  const ghost = document.getElementById('ghost');
+  const ghostGrid = document.getElementById('ghost-grid');
+  ghostGrid.innerHTML = '';
+  const cols = dragging.shape[0].length;
+  ghostGrid.style.gridTemplateColumns = `repeat(${cols}, 34px)`;
+  ghostGrid.style.gridTemplateRows = `repeat(${dragging.shape.length}, 34px)`;
+  ghostGrid.style.gap = '2px';
+  for (let r = 0; r < dragging.shape.length; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'piece-cell';
+      if (dragging.shape[r][c]) cell.classList.add('filled', 'c' + dragging.color);
+      ghostGrid.appendChild(cell);
+    }
+  }
+  const pt = e.touches ? e.touches[0] : e;
+  ghost.style.display = 'block';
+  positionGhost(pt.clientX, pt.clientY);
+  document.addEventListener('touchmove', onDragMove, { passive: false });
+  document.addEventListener('touchend', onDragEnd);
+  document.addEventListener('mousemove', onDragMove);
+  document.addEventListener('mouseup', onDragEnd);
+}
+
+function positionGhost(x, y) {
+  const ghost = document.getElementById('ghost');
+  const cols = dragging.shape[0].length, rows = dragging.shape.length;
+  // Ghost cell size is 34px + 2px gap = 36px per cell
+  const ghostCell = 36;
+  ghost.style.left = (x - (cols * ghostCell) / 2) + 'px';
+  ghost.style.top  = (y - (rows * ghostCell) / 2 - 50) + 'px';
+}
+
+function onDragMove(e) {
+  e.preventDefault();
+  const pt = e.touches ? e.touches[0] : e;
+  positionGhost(pt.clientX, pt.clientY);
+  highlightCells(pt.clientX, pt.clientY);
+}
+
+function onDragEnd(e) {
+  const pt = e.changedTouches ? e.changedTouches[0] : e;
+  clearHighlight();
+  const anchor = getCenterAnchor(pt.clientX, pt.clientY);
+  const placed = anchor ? tryPlace(dragging, anchor.r, anchor.c) : false;
+  if (placed) {
+    pieces[dragPieceIdx] = null;
+    checkAndClearLines();
+    if (pieces.every(p => p === null)) {
+      pieces = [randPiece(), randPiece(), randPiece()];
+      comboCount = 0;
+    }
+    renderTray();
+    if (!hasAnyValidMove()) triggerGameOver();
+  } else {
+    comboCount = 0;
+    if (anchor) playTone('sine', 220, 0.12, 0.2);
+  }
+  document.getElementById('ghost').style.display = 'none';
+  document.getElementById('ghost').classList.remove('valid', 'invalid');
+  dragging = null; dragPieceIdx = -1;
+  document.removeEventListener('touchmove', onDragMove);
+  document.removeEventListener('touchend', onDragEnd);
+  document.removeEventListener('mousemove', onDragMove);
+  document.removeEventListener('mouseup', onDragEnd);
+}
+
+function getBoardCellAt(x, y) {
+  const grid = document.getElementById('grid');
+  const rect = grid.getBoundingClientRect();
+  const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 38;
+  const gap = 2, pad = 6;
+  const ox = x - rect.left - pad, oy = y - rect.top - pad;
+  const step = cellSize + gap;
+  const c = Math.floor(ox / step), r = Math.floor(oy / step);
+  if (r >= 0 && r < ROWS && c >= 0 && c < COLS) return { r, c };
+  return null;
+}
+
+function getCenterAnchor(x, y) {
+  const ghost = document.getElementById('ghost');
+  const cols = dragging.shape[0].length, rows = dragging.shape.length;
+  const ghostCell = 36;
+  const ghostLeft = x - (cols * ghostCell) / 2;
+  const ghostTop  = y - (rows * ghostCell) / 2 - 50;
+
+  const grid = document.getElementById('grid');
+  const rect = grid.getBoundingClientRect();
+  const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 38;
+  const step = cellSize + 2;
+  const pad = 6;
+
+  const anchorC = Math.round((ghostLeft - rect.left - pad) / step);
+  const anchorR = Math.round((ghostTop  - rect.top  - pad) / step);
+
+  // If exact position is invalid, search nearby cells within tolerance radius
+  if (!canPlace(dragging, anchorR, anchorC)) {
+    const tolerance = 2; // cells to search in each direction
+    let bestR = anchorR, bestC = anchorC, bestDist = Infinity;
+    for (let dr = -tolerance; dr <= tolerance; dr++) {
+      for (let dc = -tolerance; dc <= tolerance; dc++) {
+        const tr = anchorR + dr, tc = anchorC + dc;
+        if (canPlace(dragging, tr, tc)) {
+          const dist = dr * dr + dc * dc;
+          if (dist < bestDist) { bestDist = dist; bestR = tr; bestC = tc; }
+        }
+      }
+    }
+    return { r: bestR, c: bestC, valid: bestDist < Infinity };
+  }
+  return { r: anchorR, c: anchorC, valid: true };
+}
+
+function highlightCells(x, y) {
+  clearHighlight();
+  if (!dragging) return;
+  const anchor = getCenterAnchor(x, y);
+  if (!anchor) return;
+  const ghost = document.getElementById('ghost');
+  ghost.classList.remove('valid', 'invalid');
+  if (anchor.valid) {
+    ghost.classList.add('valid');
+  } else {
+    ghost.classList.add('invalid');
+  }
+  for (let r = 0; r < dragging.shape.length; r++) {
+    for (let c = 0; c < dragging.shape[0].length; c++) {
+      if (!dragging.shape[r][c]) continue;
+      const gr = anchor.r + r, gc = anchor.c + c;
+      if (gr < 0 || gr >= ROWS || gc < 0 || gc >= COLS) continue;
+      const cell = document.getElementById('grid').children[gr * COLS + gc];
+      if (cell) cell.classList.add(anchor.valid ? 'highlight' : 'invalid');
+    }
+  }
+}
+
+function clearHighlight() {
+  document.querySelectorAll('.cell.highlight, .cell.invalid').forEach(c => c.classList.remove('highlight', 'invalid'));
+}
+
+function canPlace(piece, r, c) {
+  for (let pr = 0; pr < piece.shape.length; pr++) {
+    for (let pc = 0; pc < piece.shape[0].length; pc++) {
+      if (!piece.shape[pr][pc]) continue;
+      const gr = r + pr, gc = c + pc;
+      if (gr < 0 || gr >= ROWS || gc < 0 || gc >= COLS || board[gr][gc] !== -1) return false;
+    }
+  }
+  return true;
+}
+
+function tryPlace(piece, anchorR, anchorC) {
+  if (!canPlace(piece, anchorR, anchorC)) return false;
+  let cellCount = 0;
+  for (let pr = 0; pr < piece.shape.length; pr++) {
+    for (let pc = 0; pc < piece.shape[0].length; pc++) {
+      if (!piece.shape[pr][pc]) continue;
+      board[anchorR + pr][anchorC + pc] = piece.color;
+      cellCount++;
+    }
+  }
+  soundDrop();
+  addScore(cellCount, false, null);
+  renderBoard();
+  return true;
+}
+
+function checkAndClearLines() {
+  const rowsToClear = [], colsToClear = [];
+  for (let r = 0; r < ROWS; r++) if (board[r].every(v => v !== -1)) rowsToClear.push(r);
+  for (let c = 0; c < COLS; c++) if (board.map(row => row[c]).every(v => v !== -1)) colsToClear.push(c);
+  const totalLines = rowsToClear.length + colsToClear.length;
+  if (totalLines === 0) { comboCount = 0; return; }
+  comboCount++;
+
+  const cellsToClear = new Set();
+  rowsToClear.forEach(r => { for (let c = 0; c < COLS; c++) cellsToClear.add(r * COLS + c); });
+  colsToClear.forEach(c => { for (let r = 0; r < ROWS; r++) cellsToClear.add(r * COLS + c); });
+
+  // Play blast sound immediately
+  soundLineClear(totalLines);
+  if (comboCount >= 2) setTimeout(() => soundCombo(comboCount), 200);
+
+  const gridEl = document.getElementById('grid');
+  cellsToClear.forEach(idx => {
+    const cell = gridEl.children[idx];
+    if (cell) cell.classList.add('clearing');
+  });
+
+  setTimeout(() => {
+    rowsToClear.forEach(r => { for (let c = 0; c < COLS; c++) board[r][c] = -1; });
+    colsToClear.forEach(c => { for (let r = 0; r < ROWS; r++) board[r][c] = -1; });
+    const cleared = rowsToClear.length * COLS + colsToClear.length * ROWS - rowsToClear.length * colsToClear.length;
+    addScore(cleared, true, totalLines);
+    renderBoard();
+  }, 350);
+}
+
+function addScore(cells, isLine, lineCount) {
+  let pts = cells * 10;
+  if (isLine) {
+    pts += lineCount * 50;
+    if (comboCount > 1) pts += (comboCount - 1) * 100;
+  }
+  score += pts;
+  if (score > best) { best = score; localStorage.setItem('seb_blast_best', best); }
+  updateScore();
+  if (isLine) { showCombo(lineCount); showScorePop(pts); }
+}
+
+function showCombo(lines) {
+  const el = document.getElementById('combo');
+  let msg = '';
+  if (lines >= 2) msg += `${lines} LINES!`;
+  if (comboCount >= 2) msg += (msg ? ' ' : '') + `×${comboCount} COMBO!`;
+  if (msg) {
+    el.textContent = msg;
+    setTimeout(() => { el.textContent = ''; }, 1600);
+  } else {
+    el.textContent = '';
+  }
+}
+
+function showScorePop(pts) {
+  const wrap = document.getElementById('grid-wrap');
+  const pop = document.createElement('div');
+  pop.className = 'score-pop';
+  pop.textContent = '+' + pts;
+  pop.style.top = Math.random() * 40 + 30 + '%';
+  pop.style.left = Math.random() * 50 + 25 + '%';
+  wrap.appendChild(pop);
+  pop.addEventListener('animationend', () => pop.remove());
+}
+
+function hasAnyValidMove() {
+  for (let i = 0; i < pieces.length; i++) {
+    if (pieces[i] === null) continue;
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const ar = r - Math.floor(pieces[i].shape.length / 2);
+        const ac = c - Math.floor(pieces[i].shape[0].length / 2);
+        if (canPlace(pieces[i], ar, ac)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function triggerGameOver() {
+  soundGameOver();
+  if (score > best) { best = score; localStorage.setItem('seb_blast_best', best); }
+  document.getElementById('final-score').textContent = score;
+  document.getElementById('final-best').textContent = best;
+  setTimeout(() => document.getElementById('gameover').classList.add('show'), 400);
+}
+
+document.getElementById('restart-btn').addEventListener('click', initGame);
+
+function setResponsiveCellSize() {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const gridSpace = Math.min(vw - 20, vh * 0.54);
+  const cell = Math.floor((gridSpace - 12 - 9 * 2) / 10);
+  document.documentElement.style.setProperty('--cell', cell + 'px');
+}
+window.addEventListener('resize', () => { setResponsiveCellSize(); renderBoard(); renderTray(); });
+setResponsiveCellSize();
+initGame();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
