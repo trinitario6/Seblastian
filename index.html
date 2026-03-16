@@ -243,11 +243,11 @@
     opacity: 0.9;
   }
   #ghost .piece-grid { gap: 2px; }
-  #ghost .piece-cell { width: var(--cell); height: var(--cell); border-radius: 6px; overflow: hidden; transition: background 0.1s; background: transparent; border: none; }
+  #ghost .piece-cell { width: var(--cell); height: var(--cell); border-radius: 6px; overflow: hidden; transition: box-shadow 0.1s; background: transparent; border: none; position: relative; }
   #ghost .piece-cell.filled { border: 1px solid rgba(255,255,255,0.1); }
-  #ghost.valid .piece-cell.filled   { background: #27ae60 !important; box-shadow: 0 0 8px rgba(39,174,96,0.6); }
+  #ghost.valid .piece-cell.filled   { box-shadow: 0 0 8px rgba(39,174,96,0.8), inset 0 0 0 2px rgba(39,174,96,0.6); }
   #ghost.valid .piece-cell.filled::after { background: rgba(255,255,255,0.3); }
-  #ghost.invalid .piece-cell.filled { background: #e74c3c !important; box-shadow: 0 0 8px rgba(231,76,60,0.6); }
+  #ghost.invalid .piece-cell.filled { box-shadow: 0 0 8px rgba(231,76,60,0.8), inset 0 0 0 2px rgba(231,76,60,0.7); }
   #ghost.invalid .piece-cell.filled::after { background: rgba(255,255,255,0.2); }
 
   /* Game over overlay */
