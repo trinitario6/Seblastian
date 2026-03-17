@@ -940,6 +940,20 @@ function initBoard(lvl) {
       for (let dc = 0; dc < 3; dc++)
         board[r+dr][c+dc] = -1;
   }
+
+  // Step 6: Break any accidentally completed rows or columns.
+  // The seeding steps can leave fully-filled lines which would clear immediately
+  // on the first move — punch a random gap in each to keep them as near-complete.
+  for (let r = 0; r < ROWS; r++) {
+    if (board[r].every(v => v !== -1)) {
+      board[r][Math.floor(Math.random() * COLS)] = -1;
+    }
+  }
+  for (let c = 0; c < COLS; c++) {
+    if (board.map(row => row[c]).every(v => v !== -1)) {
+      board[Math.floor(Math.random() * ROWS)][c] = -1;
+    }
+  }
 }
 
 function initGame(mode) {
