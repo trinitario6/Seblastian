@@ -1067,10 +1067,10 @@ function startDrag(e, idx) {
 // Single source of truth: where the ghost's top-left pixel should be.
 // Uses the live board --cell size so ghost always matches the grid exactly.
 // When over the board, highlightCells overrides this with a snapped position.
-function ghostTopLeft(x, y) {
+function ghostTopLeft(x, y, piece) {
+  const p = piece || dragging;
   const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 38;
-  const step = cellSize + 2;
-  const cols = dragging.shape[0].length, rows = dragging.shape.length;
+  const cols = p.shape[0].length, rows = p.shape.length;
   const W = cols * cellSize + (cols - 1) * 2;
   const H = rows * cellSize + (rows - 1) * 2;
   return { left: x - W / 2, top: y - H / 2 - 60 };
@@ -1091,13 +1091,29 @@ function onDragMove(e) {
 }
 
 async function onDragEnd(e) {
+  // Remove listeners immediately so a second fire (touchend + mouseup on mobile)
+  // cannot re-enter this handler for the same gesture.
+  document.removeEventListener('touchmove', onDragMove);
+  document.removeEventListener('touchend', onDragEnd);
+  document.removeEventListener('mousemove', onDragMove);
+  document.removeEventListener('mouseup', onDragEnd);
+
   const pt = e.changedTouches ? e.changedTouches[0] : e;
   clearHighlight();
-  const anchor = getCenterAnchor(pt.clientX, pt.clientY);
-  const placed = anchor ? tryPlace(dragging, anchor.r, anchor.c) : false;
+  document.getElementById('ghost').style.display = 'none';
+  document.getElementById('ghost').classList.remove('valid', 'invalid');
+
+  const currentDragging = dragging;
+  const currentIdx = dragPieceIdx;
+  dragging = null; dragPieceIdx = -1;
+
+  if (!currentDragging || processing) return;
+
+  const anchor = getCenterAnchor(pt.clientX, pt.clientY, currentDragging);
+  const placed = anchor ? tryPlace(currentDragging, anchor.r, anchor.c) : false;
   if (placed) {
     processing = true;
-    pieces[dragPieceIdx] = null;
+    pieces[currentIdx] = null;
     await checkAndClearLines();
     if (pieces.every(p => p === null)) {
       pieces = generatePieces();
@@ -1110,13 +1126,6 @@ async function onDragEnd(e) {
     comboCount = 0;
     if (anchor) playTone('sine', 220, 0.12, 0.2);
   }
-  document.getElementById('ghost').style.display = 'none';
-  document.getElementById('ghost').classList.remove('valid', 'invalid');
-  dragging = null; dragPieceIdx = -1;
-  document.removeEventListener('touchmove', onDragMove);
-  document.removeEventListener('touchend', onDragEnd);
-  document.removeEventListener('mousemove', onDragMove);
-  document.removeEventListener('mouseup', onDragEnd);
 }
 
 function getBoardCellAt(x, y) {
@@ -1131,8 +1140,8 @@ function getBoardCellAt(x, y) {
   return null;
 }
 
-function getCenterAnchor(x, y) {
-  const { left: ghostLeft, top: ghostTop } = ghostTopLeft(x, y);
+function getCenterAnchor(x, y, piece) {
+  const { left: ghostLeft, top: ghostTop } = ghostTopLeft(x, y, piece);
   const grid = document.getElementById('grid');
   const rect = grid.getBoundingClientRect();
   const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 38;
@@ -1142,16 +1151,14 @@ function getCenterAnchor(x, y) {
   const anchorC = Math.round((ghostLeft - rect.left - pad) / step);
   const anchorR = Math.round((ghostTop  - rect.top  - pad) / step);
 
-  // If exact anchor is valid, use it
-  if (canPlace(dragging, anchorR, anchorC)) {
+  if (canPlace(piece, anchorR, anchorC)) {
     return { r: anchorR, c: anchorC, valid: true };
   }
 
-  // On drop only: try a small 1-cell nudge so near-misses still land
   for (let dr = -1; dr <= 1; dr++) {
     for (let dc = -1; dc <= 1; dc++) {
       if (dr === 0 && dc === 0) continue;
-      if (canPlace(dragging, anchorR + dr, anchorC + dc)) {
+      if (canPlace(piece, anchorR + dr, anchorC + dc)) {
         return { r: anchorR + dr, c: anchorC + dc, valid: true };
       }
     }
