@@ -805,11 +805,16 @@ function generatePieces() {
     if (orderings >= minOrderings) return trio;
   }
 
-  // Absolute fallback: generate 3 small pieces that definitely fit
+  // Absolute fallback: return whatever small pieces still fit, or signal truly full board
   const fallback = [];
   for (let i = 0; i < 3; i++) {
-    let p; let tries = 0;
-    do { p = randPiece(); tries++; } while (!pieceCanFitAnywhere(p) && tries < 60);
+    let p = null; let tries = 0;
+    do {
+      const candidate = randPiece();
+      if (pieceCanFitAnywhere(candidate)) { p = candidate; break; }
+      tries++;
+    } while (tries < 60);
+    // If nothing fits, use a 1×1 as a sentinel — hasAnyValidMove will catch it
     fallback.push(p || { shape: [[1]], color: Math.floor(Math.random() * 9) });
   }
   return fallback;
