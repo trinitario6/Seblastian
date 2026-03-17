@@ -549,7 +549,7 @@ document.getElementById('mute-btn').addEventListener('click', () => {
 // ─── Game Logic ───────────────────────────────────────────────────────────────
 const COLS = 10, ROWS = 10;
 const LEVEL_THRESHOLD = 5000; // points per level
-let board = [], score = 0, best = 0, level = 1, pieces = [], dragging = null, dragPieceIdx = -1, comboCount = 0;
+let board = [], score = 0, best = 0, level = 1, pieces = [], dragging = null, dragPieceIdx = -1, comboCount = 0, levelUpInProgress = false;
 
 // Each entry: { shape, color, easyWeight, hardWeight }
 // easyWeight = weight at level 1, hardWeight = weight at level 10+
@@ -939,7 +939,7 @@ function initBoard(lvl) {
 
 function initGame(mode) {
   if (mode) gameMode = mode;
-  score = 0; comboCount = 0; level = 1;
+  score = 0; comboCount = 0; level = 1; levelUpInProgress = false;
   _piecePool = buildPiecePool(1);
   const bestKey = 'seb_blast_best_' + gameMode;
   best = parseInt(localStorage.getItem(bestKey) || '0');
@@ -1078,7 +1078,7 @@ async function onDragEnd(e) {
       comboCount = 0;
     }
     renderTray();
-    if (!hasAnyValidMove()) triggerGameOver();
+    if (!levelUpInProgress && !hasAnyValidMove()) triggerGameOver();
   } else {
     comboCount = 0;
     if (anchor) playTone('sine', 220, 0.12, 0.2);
@@ -1281,15 +1281,17 @@ function addScore(cells, isLine, lineCount) {
 
 function triggerLevelUp(newLevel) {
   level = newLevel;
-  _piecePool = buildPiecePool(newLevel); // shift piece weights for new level
+  _piecePool = buildPiecePool(newLevel);
   updateScore();
   showPopup('🚀 Level ' + newLevel + '!');
   soundLineClear(4);
+  levelUpInProgress = true;
   setTimeout(() => {
     initBoard(newLevel);
     pieces = generatePieces();
     renderBoard();
     renderTray();
+    levelUpInProgress = false;
   }, 700);
 }
 
