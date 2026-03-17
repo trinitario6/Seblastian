@@ -1080,6 +1080,20 @@ async function onDragEnd(e) {
     await checkAndClearLines(); // wait for board to reflect cleared lines
     if (pieces.every(p => p === null)) {
       pieces = generatePieces();
+      // Guarantee every piece fits on the current board individually.
+      // generatePieces validates sequential placement (piece B fits after A clears
+      // lines) but a piece might not fit on the raw board right now — which would
+      // incorrectly trigger game over. Replace any such piece with one that fits.
+      pieces = pieces.map(p => {
+        if (p === null || canFitOnBoard(board, p)) return p;
+        // Find a replacement that fits
+        let tries = 0;
+        while (tries++ < 100) {
+          const candidate = randPiece();
+          if (canFitOnBoard(board, candidate)) return candidate;
+        }
+        return p; // give up — hasAnyValidMove will correctly fire game over
+      });
       comboCount = 0;
     }
     renderTray();
