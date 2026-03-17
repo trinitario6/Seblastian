@@ -1339,31 +1339,8 @@ function showScorePop(pts) {
 }
 
 function hasAnyValidMove() {
-  // Game over only when NO ordering of the remaining pieces can all be placed.
-  const remaining = pieces.filter(p => p !== null);
-  if (remaining.length === 0) return true;
-  if (remaining.length === 1) return canFitOnBoard(board, remaining[0]);
-
-  // Try all orderings of remaining pieces, checking every placement position
-  function permutations(arr) {
-    if (arr.length <= 1) return [arr];
-    return arr.flatMap((v, i) => permutations([...arr.slice(0,i), ...arr.slice(i+1)]).map(p => [v, ...p]));
-  }
-
-  return permutations(remaining).some(perm => {
-    const boards1 = allPlacementBoards(board, perm[0]);
-    if (boards1.length === 0) return false;
-    if (perm.length === 1) return true;
-    for (const b1 of boards1) {
-      const boards2 = allPlacementBoards(b1, perm[1]);
-      if (boards2.length === 0) continue;
-      if (perm.length === 2) return true;
-      for (const b2 of boards2) {
-        if (canFitOnBoard(b2, perm[2])) return true;
-      }
-    }
-    return false;
-  });
+  // Game over only when a remaining piece has no valid position on the current board.
+  return pieces.every(p => p === null || canFitOnBoard(board, p));
 }
 
 function triggerGameOver() {
