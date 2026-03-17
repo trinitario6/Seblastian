@@ -549,7 +549,7 @@ document.getElementById('mute-btn').addEventListener('click', () => {
 // ─── Game Logic ───────────────────────────────────────────────────────────────
 const COLS = 10, ROWS = 10;
 const LEVEL_THRESHOLD = 5000; // points per level
-let board = [], score = 0, best = 0, level = 1, pieces = [], dragging = null, dragPieceIdx = -1, comboCount = 0, levelUpInProgress = false;
+let board = [], score = 0, best = 0, level = 1, pieces = [], dragging = null, dragPieceIdx = -1, comboCount = 0, levelUpInProgress = false, processing = false;
 
 // Each entry: { shape, color, easyWeight, hardWeight }
 // easyWeight = weight at level 1, hardWeight = weight at level 10+
@@ -802,7 +802,13 @@ function generatePieces() {
 
     // Validate: check that enough orderings exist
     const orderings = countValidOrderings(board, trio);
-    if (orderings >= minOrderings) return trio;
+    if (orderings >= minOrderings) {
+      // Final guarantee: every piece must fit on the current board individually.
+      // Sequential validation allows pieces that only fit AFTER another clears
+      // lines — those would cause a false game-over when checked individually.
+      const allFit = trio.every(p => canFitOnBoard(board, p));
+      if (allFit) return trio;
+    }
   }
 
   // Absolute fallback: return whatever small pieces still fit, or signal truly full board
@@ -958,7 +964,7 @@ function initBoard(lvl) {
 
 function initGame(mode) {
   if (mode) gameMode = mode;
-  score = 0; comboCount = 0; level = 1; levelUpInProgress = false;
+  score = 0; comboCount = 0; level = 1; levelUpInProgress = false; processing = false;
   _piecePool = buildPiecePool(1);
   const bestKey = 'seb_blast_best_' + gameMode;
   best = parseInt(localStorage.getItem(bestKey) || '0');
@@ -1028,7 +1034,7 @@ function updateScore() {
 
 function startDrag(e, idx) {
   e.preventDefault();
-  if (pieces[idx] === null) return;
+  if (pieces[idx] === null || processing) return;
   soundPickup();
   dragPieceIdx = idx;
   dragging = pieces[idx];
@@ -1090,28 +1096,16 @@ async function onDragEnd(e) {
   const anchor = getCenterAnchor(pt.clientX, pt.clientY);
   const placed = anchor ? tryPlace(dragging, anchor.r, anchor.c) : false;
   if (placed) {
+    processing = true;
     pieces[dragPieceIdx] = null;
-    await checkAndClearLines(); // wait for board to reflect cleared lines
+    await checkAndClearLines();
     if (pieces.every(p => p === null)) {
       pieces = generatePieces();
-      // Guarantee every piece fits on the current board individually.
-      // generatePieces validates sequential placement (piece B fits after A clears
-      // lines) but a piece might not fit on the raw board right now — which would
-      // incorrectly trigger game over. Replace any such piece with one that fits.
-      pieces = pieces.map(p => {
-        if (p === null || canFitOnBoard(board, p)) return p;
-        // Find a replacement that fits
-        let tries = 0;
-        while (tries++ < 100) {
-          const candidate = randPiece();
-          if (canFitOnBoard(board, candidate)) return candidate;
-        }
-        return p; // give up — hasAnyValidMove will correctly fire game over
-      });
       comboCount = 0;
     }
     renderTray();
     if (!levelUpInProgress && !hasAnyValidMove()) triggerGameOver();
+    processing = false;
   } else {
     comboCount = 0;
     if (anchor) playTone('sine', 220, 0.12, 0.2);
