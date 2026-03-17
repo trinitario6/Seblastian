@@ -802,7 +802,14 @@ function generatePieces() {
 
     // Validate: check that enough orderings exist
     const orderings = countValidOrderings(board, trio);
-    if (orderings >= minOrderings) return trio;
+    if (orderings >= minOrderings) {
+      // Kid mode at low levels: also require every piece fits individually right now
+      if (gameMode === 'kid' && level < 5) {
+        if (trio.every(p => canFitOnBoard(board, p))) return trio;
+      } else {
+        return trio;
+      }
+    }
   }
 
   // Fallback: couldn't find a trio meeting the ordering requirement.
@@ -1389,9 +1396,15 @@ function hasAnyValidMove() {
   const remaining = pieces.filter(p => p !== null);
   if (remaining.length === 0) return true;
 
-  // Check that all remaining pieces can be played within the next moves
-  // by trying every ordering and every placement position sequentially.
-  // Game over only when NO ordering allows all pieces to be placed.
+  // Kid mode at low levels: just check each piece fits individually.
+  // Sequential checking is too strict when the board is forgiving.
+  // Adult mode and higher kid levels: check all pieces can be played in some order.
+  const useSequential = gameMode === 'adult' || level >= 5;
+
+  if (!useSequential) {
+    return remaining.every(p => canFitOnBoard(board, p));
+  }
+
   function canPlayAll(boardSnap, unplayed) {
     if (unplayed.length === 0) return true;
     for (let i = 0; i < unplayed.length; i++) {
