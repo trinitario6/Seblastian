@@ -802,28 +802,39 @@ function generatePieces() {
 
     // Validate: check that enough orderings exist
     const orderings = countValidOrderings(board, trio);
-    if (orderings >= minOrderings) {
-      // Final guarantee: every piece must fit on the current board individually.
-      // Sequential validation allows pieces that only fit AFTER another clears
-      // lines — those would cause a false game-over when checked individually.
-      const allFit = trio.every(p => canFitOnBoard(board, p));
-      if (allFit) return trio;
-    }
+    if (orderings >= minOrderings) return trio;
   }
 
-  // Absolute fallback: return whatever small pieces still fit, or signal truly full board
+  // Fallback: couldn't find a trio meeting the ordering requirement.
+  // Return 3 pieces that each individually fit on the current board,
+  // scaling down to smaller pieces if needed.
   const fallback = [];
   for (let i = 0; i < 3; i++) {
-    let p = null; let tries = 0;
-    do {
+    // Try progressively smaller pieces until something fits
+    let p = null;
+    for (let tries = 0; tries < 120 && !p; tries++) {
       const candidate = randPiece();
-      if (pieceCanFitAnywhere(candidate)) { p = candidate; break; }
-      tries++;
-    } while (tries < 60);
-    // If nothing fits, use a 1×1 as a sentinel — hasAnyValidMove will catch it
+      if (canFitOnBoard(board, candidate)) p = candidate;
+    }
+    // If nothing from the pool fits, use a 1×1 — truly game over territory
     fallback.push(p || { shape: [[1]], color: Math.floor(Math.random() * 9) });
   }
   return fallback;
+}
+
+// After generating pieces, ensure every piece fits individually on the current
+// board right now. Pieces validated sequentially may only fit after another
+// piece clears lines — replace those with smaller pieces that fit immediately.
+function ensureAllPiecesFit(trio) {
+  return trio.map(p => {
+    if (p === null || canFitOnBoard(board, p)) return p;
+    // Swap for a smaller piece that fits
+    for (let tries = 0; tries < 120; tries++) {
+      const candidate = randPiece();
+      if (canFitOnBoard(board, candidate)) return candidate;
+    }
+    return p; // truly no space — hasAnyValidMove will correctly fire game over
+  });
 }
 
 function initBoard(lvl) {
@@ -969,7 +980,7 @@ function initGame(mode) {
   const bestKey = 'seb_blast_best_' + gameMode;
   best = parseInt(localStorage.getItem(bestKey) || '0');
   initBoard(1);
-  pieces = generatePieces();
+  pieces = ensureAllPiecesFit(generatePieces());
   renderBoard(); renderTray(); updateScore();
   document.getElementById('gameover').classList.remove('show');
   document.getElementById('mode-select').classList.add('hidden');
@@ -1116,7 +1127,7 @@ async function onDragEnd(e) {
     pieces[currentIdx] = null;
     await checkAndClearLines();
     if (pieces.every(p => p === null)) {
-      pieces = generatePieces();
+      pieces = ensureAllPiecesFit(generatePieces());
       comboCount = 0;
     }
     renderTray();
@@ -1322,7 +1333,7 @@ function triggerLevelUp(newLevel) {
   levelUpInProgress = true;
   setTimeout(() => {
     initBoard(newLevel);
-    pieces = generatePieces();
+    pieces = ensureAllPiecesFit(generatePieces());
     renderBoard();
     renderTray();
     levelUpInProgress = false;
@@ -1375,8 +1386,7 @@ function showScorePop(pts) {
 }
 
 function hasAnyValidMove() {
-  // Game over only when a remaining piece has no valid position on the current board.
-  return pieces.every(p => p === null || canFitOnBoard(board, p));
+  return pieces.some(p => p !== null && canFitOnBoard(board, p));
 }
 
 function triggerGameOver() {
