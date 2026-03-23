@@ -802,14 +802,7 @@ function generatePieces() {
 
     // Validate: check that enough orderings exist
     const orderings = countValidOrderings(board, trio);
-    if (orderings >= minOrderings) {
-      // Kid mode at low levels: also require every piece fits individually right now
-      if (gameMode === 'kid' && level < 5) {
-        if (trio.every(p => canFitOnBoard(board, p))) return trio;
-      } else {
-        return trio;
-      }
-    }
+    if (orderings >= minOrderings) return trio;
   }
 
   // Fallback: couldn't find a trio meeting the ordering requirement.
@@ -829,18 +822,34 @@ function generatePieces() {
   return fallback;
 }
 
-// After generating pieces, ensure every piece fits individually on the current
-// board right now. Pieces validated sequentially may only fit after another
-// piece clears lines — replace those with smaller pieces that fit immediately.
-function ensureAllPiecesFit(trio) {
-  return trio.map(p => {
-    if (p === null || canFitOnBoard(board, p)) return p;
-    // Swap for a smaller piece that fits
-    for (let tries = 0; tries < 120; tries++) {
-      const candidate = randPiece();
-      if (canFitOnBoard(board, candidate)) return candidate;
+// After generating, verify the trio is genuinely playable on the current board —
+// meaning all 3 pieces can be placed in some order (with line clears in between).
+// If not, keep trying until we find a playable set or exhaust attempts.
+function guaranteePlayableTrio(trio) {
+  if (canPlayAll(board, trio)) return trio;
+
+  // Try to find a playable trio from scratch
+  for (let attempt = 0; attempt < 80; attempt++) {
+    const candidate = [];
+    for (let i = 0; i < 3; i++) {
+      let p = null;
+      for (let t = 0; t < 40; t++) {
+        const r = randPiece();
+        if (canFitOnBoard(board, r)) { p = r; break; }
+      }
+      candidate.push(p || { shape: [[1]], color: Math.floor(Math.random() * 9) });
     }
-    return p; // truly no space — hasAnyValidMove will correctly fire game over
+    if (trioIsPlayable(candidate)) return candidate;
+  }
+
+  // Last resort: 3 individually-fitting pieces (game may be nearly over)
+  return trio.map(p => {
+    if (p !== null && canFitOnBoard(board, p)) return p;
+    for (let t = 0; t < 80; t++) {
+      const r = randPiece();
+      if (canFitOnBoard(board, r)) return r;
+    }
+    return { shape: [[1]], color: Math.floor(Math.random() * 9) };
   });
 }
 
@@ -987,7 +996,7 @@ function initGame(mode) {
   const bestKey = 'seb_blast_best_' + gameMode;
   best = parseInt(localStorage.getItem(bestKey) || '0');
   initBoard(1);
-  pieces = ensureAllPiecesFit(generatePieces());
+  pieces = guaranteePlayableTrio(generatePieces());
   renderBoard(); renderTray(); updateScore();
   document.getElementById('gameover').classList.remove('show');
   document.getElementById('mode-select').classList.add('hidden');
@@ -1134,7 +1143,7 @@ async function onDragEnd(e) {
     pieces[currentIdx] = null;
     await checkAndClearLines();
     if (pieces.every(p => p === null)) {
-      pieces = ensureAllPiecesFit(generatePieces());
+      pieces = guaranteePlayableTrio(generatePieces());
       comboCount = 0;
     }
     renderTray();
@@ -1340,7 +1349,7 @@ function triggerLevelUp(newLevel) {
   levelUpInProgress = true;
   setTimeout(() => {
     initBoard(newLevel);
-    pieces = ensureAllPiecesFit(generatePieces());
+    pieces = guaranteePlayableTrio(generatePieces());
     renderBoard();
     renderTray();
     levelUpInProgress = false;
@@ -1392,32 +1401,24 @@ function showScorePop(pts) {
   pop.addEventListener('animationend', () => pop.remove());
 }
 
+// Recursive check: can all pieces in `unplayed` be placed in some order
+// on boardSnap, with line clears applied between each placement?
+function canPlayAll(boardSnap, unplayed) {
+  if (unplayed.length === 0) return true;
+  for (let i = 0; i < unplayed.length; i++) {
+    const piece = unplayed[i];
+    const rest = unplayed.filter((_, j) => j !== i);
+    const nextBoards = allPlacementBoards(boardSnap, piece);
+    for (const nb of nextBoards) {
+      if (canPlayAll(nb, rest)) return true;
+    }
+  }
+  return false;
+}
+
 function hasAnyValidMove() {
   const remaining = pieces.filter(p => p !== null);
   if (remaining.length === 0) return true;
-
-  // Kid mode at low levels: just check each piece fits individually.
-  // Sequential checking is too strict when the board is forgiving.
-  // Adult mode and higher kid levels: check all pieces can be played in some order.
-  const useSequential = gameMode === 'adult' || level >= 5;
-
-  if (!useSequential) {
-    return remaining.every(p => canFitOnBoard(board, p));
-  }
-
-  function canPlayAll(boardSnap, unplayed) {
-    if (unplayed.length === 0) return true;
-    for (let i = 0; i < unplayed.length; i++) {
-      const piece = unplayed[i];
-      const rest = unplayed.filter((_, j) => j !== i);
-      const nextBoards = allPlacementBoards(boardSnap, piece);
-      for (const nextBoard of nextBoards) {
-        if (canPlayAll(nextBoard, rest)) return true;
-      }
-    }
-    return false;
-  }
-
   return canPlayAll(board, remaining);
 }
 
