@@ -1417,9 +1417,9 @@ function canPlayAll(boardSnap, unplayed) {
 }
 
 function hasAnyValidMove() {
-  const remaining = pieces.filter(p => p !== null);
-  if (remaining.length === 0) return true;
-  return canPlayAll(board, remaining);
+  // Game over only when every remaining piece has no valid position on the board.
+  // If even one piece can be placed anywhere, the game continues.
+  return pieces.some(p => p !== null && canFitOnBoard(board, p));
 }
 
 function triggerGameOver() {
