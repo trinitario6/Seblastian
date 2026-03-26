@@ -757,13 +757,14 @@ function countValidOrderings(boardSnap, trio) {
 //
 // The 3×3 block is a premium piece — it features in ~1 in 4 trays and always
 // pairs with pieces that can clear space for it.
-function generatePieces() {
-  // Permutation leniency — the only difficulty difference between modes:
-  // Kid:   levels 1-7 = all 6 orderings valid; levels 8-20 tapers 6→1
-  // Adult: levels 1-3 = 4 orderings valid;    levels 4-20 tapers 4→1
-  const minOrderings = gameMode === 'kid'
+function currentMinOrderings() {
+  return gameMode === 'kid'
     ? (level <= 7 ? 6 : Math.max(1, Math.round(6 - (level - 7) * 5 / 13)))
     : (level <= 3 ? 4 : Math.max(1, Math.round(4 - (level - 3) * 3 / 17)));
+}
+
+function generatePieces() {
+  const minOrderings = currentMinOrderings();
 
   // Pick one piece that fits on the current board, biased toward larger pieces.
   function pickFittingPiece(exclude3x3) {
@@ -795,7 +796,7 @@ function generatePieces() {
     }
 
     const orderings = countValidOrderings(board, trio);
-    if (orderings >= minOrderings) return trio;
+    if (orderings >= minOrderings) return guaranteePlayableTrio(trio, minOrderings);
   }
 
   // Fallback: 3 individually-fitting pieces
@@ -808,14 +809,30 @@ function generatePieces() {
     }
     fallback.push(p || { shape: [[1]], color: Math.floor(Math.random() * 9) });
   }
-  return fallback;
+  return guaranteePlayableTrio(fallback, minOrderings);
 }
 
-// Verify the trio can genuinely all be played in some order on the current board.
-// If not, regenerate until one passes or fall back to individually-fitting pieces.
-function guaranteePlayableTrio(trio) {
-  if (canPlayAll(board, trio)) return trio;
+// Verify the trio meets the minOrderings requirement on the current board.
+// If not, regenerate until one passes or fall back to any playable set.
+function guaranteePlayableTrio(trio, minOrderings) {
+  const required = minOrderings || 1;
 
+  if (countValidOrderings(board, trio) >= required) return trio;
+
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const candidate = [];
+    for (let i = 0; i < 3; i++) {
+      let p = null;
+      for (let t = 0; t < 60 && !p; t++) {
+        const r = randPiece();
+        if (canFitOnBoard(board, r)) p = r;
+      }
+      candidate.push(p || { shape: [[1]], color: Math.floor(Math.random() * 9) });
+    }
+    if (countValidOrderings(board, candidate) >= required) return candidate;
+  }
+
+  // Relax to any ordering if strict requirement can't be met
   for (let attempt = 0; attempt < 60; attempt++) {
     const candidate = [];
     for (let i = 0; i < 3; i++) {
@@ -838,7 +855,6 @@ function guaranteePlayableTrio(trio) {
     }
     return { shape: [[1]], color: Math.floor(Math.random() * 9) };
   });
-}
 
 function initBoard(lvl) {
   board = Array.from({ length: ROWS }, () => Array(COLS).fill(-1));
@@ -975,7 +991,7 @@ function initGame(mode) {
   const bestKey = 'seb_blast_best_' + gameMode;
   best = parseInt(localStorage.getItem(bestKey) || '0');
   initBoard(1);
-  pieces = guaranteePlayableTrio(generatePieces());
+  pieces = guaranteePlayableTrio(generatePieces(), currentMinOrderings());
   renderBoard(); renderTray(); updateScore();
   document.getElementById('gameover').classList.remove('show');
   document.getElementById('mode-select').classList.add('hidden');
@@ -1124,7 +1140,7 @@ async function onDragEnd(e) {
     if (pieces.every(p => p === null)) {
       // Defer expensive sequential validation so board paint isn't blocked
       await new Promise(resolve => setTimeout(resolve, 0));
-      pieces = guaranteePlayableTrio(generatePieces());
+      pieces = guaranteePlayableTrio(generatePieces(), currentMinOrderings());
       comboCount = 0;
     }
     renderTray();
@@ -1334,7 +1350,7 @@ function triggerLevelUp(newLevel) {
     renderTray();
     // Defer expensive piece generation so the new board paints first
     setTimeout(() => {
-      pieces = guaranteePlayableTrio(generatePieces());
+      pieces = guaranteePlayableTrio(generatePieces(), currentMinOrderings());
       renderTray();
       levelUpInProgress = false;
     }, 0);
