@@ -855,6 +855,7 @@ function guaranteePlayableTrio(trio, minOrderings) {
     }
     return { shape: [[1]], color: Math.floor(Math.random() * 9) };
   });
+}
 
 function initBoard(lvl) {
   board = Array.from({ length: ROWS }, () => Array(COLS).fill(-1));
