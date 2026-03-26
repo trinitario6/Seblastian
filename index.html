@@ -782,7 +782,7 @@ function generatePieces() {
     return topHalf[Math.floor(Math.random() * topHalf.length)].p;
   }
 
-  for (let attempt = 0; attempt < 200; attempt++) {
+  for (let attempt = 0; attempt < 60; attempt++) {
     const trio = [];
     const include3x3 = Math.random() < 0.25;
 
@@ -819,11 +819,13 @@ function guaranteePlayableTrio(trio, minOrderings) {
 
   if (countValidOrderings(board, trio) >= required) return trio;
 
-  for (let attempt = 0; attempt < 100; attempt++) {
+  // Try fresh trios — favour smaller pieces as they have more placement options
+  // making it easier to satisfy the ordering requirement
+  for (let attempt = 0; attempt < 30; attempt++) {
     const candidate = [];
     for (let i = 0; i < 3; i++) {
       let p = null;
-      for (let t = 0; t < 60 && !p; t++) {
+      for (let t = 0; t < 30 && !p; t++) {
         const r = randPiece();
         if (canFitOnBoard(board, r)) p = r;
       }
@@ -832,12 +834,12 @@ function guaranteePlayableTrio(trio, minOrderings) {
     if (countValidOrderings(board, candidate) >= required) return candidate;
   }
 
-  // Relax to any ordering if strict requirement can't be met
-  for (let attempt = 0; attempt < 60; attempt++) {
+  // Relax to any single valid ordering
+  for (let attempt = 0; attempt < 20; attempt++) {
     const candidate = [];
     for (let i = 0; i < 3; i++) {
       let p = null;
-      for (let t = 0; t < 60 && !p; t++) {
+      for (let t = 0; t < 30 && !p; t++) {
         const r = randPiece();
         if (canFitOnBoard(board, r)) p = r;
       }
@@ -849,7 +851,7 @@ function guaranteePlayableTrio(trio, minOrderings) {
   // Last resort — individually-fitting pieces
   return trio.map(p => {
     if (p !== null && canFitOnBoard(board, p)) return p;
-    for (let t = 0; t < 80; t++) {
+    for (let t = 0; t < 50; t++) {
       const r = randPiece();
       if (canFitOnBoard(board, r)) return r;
     }
