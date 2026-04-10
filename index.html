@@ -70,8 +70,8 @@
   #grid-wrap { position: relative; }
   #grid {
     display: grid;
-    grid-template-columns: repeat(10, var(--cell));
-    grid-template-rows: repeat(10, var(--cell));
+    grid-template-columns: repeat(8, var(--cell));
+    grid-template-rows: repeat(8, var(--cell));
     gap: var(--gap);
     background: var(--bg2);
     border-radius: 12px;
@@ -455,8 +455,8 @@ document.getElementById('mute-btn').addEventListener('click', () => {
 });
 
 // ─── Game Logic ───────────────────────────────────────────────────────────────
-const COLS = 10, ROWS = 10;
-const LEVEL_THRESHOLD = 500; // points per level — levels come fast and feel rewarding
+const COLS = 8, ROWS = 8;
+const LEVEL_THRESHOLD = 200; // ~100 moves per level at 2pts per cell
 let board = [], score = 0, best = 0, level = 1, pieces = [], dragging = null,
     dragPieceIdx = -1, comboCount = 0, levelUpInProgress = false, processing = false;
 
@@ -936,10 +936,10 @@ function checkAndClearLines() {
 }
 
 function addScore(cells, isLine, lineCount) {
-  let pts = cells * 10;
+  let pts = cells * 2; // 2 points per cell placed
   if (isLine) {
-    pts += lineCount * 50;
-    if (comboCount > 1) pts += (comboCount - 1) * 100;
+    pts += lineCount * 10; // 10 bonus per line cleared
+    if (comboCount > 1) pts += (comboCount - 1) * 20; // combo bonus
   }
   const prevLevel = Math.floor(score / LEVEL_THRESHOLD) + 1;
   score += pts;
@@ -1047,7 +1047,7 @@ function setResponsiveCellSize() {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const gridSpace = Math.min(vw - 20, vh * 0.54);
-  const cell = Math.floor((gridSpace - 12 - 9 * 2) / 10);
+  const cell = Math.floor((gridSpace - 12 - 7 * 2) / 8);
   document.documentElement.style.setProperty('--cell', cell + 'px');
 }
 window.addEventListener('resize', () => { setResponsiveCellSize(); renderBoard(); renderTray(); });
